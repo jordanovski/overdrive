@@ -29,5 +29,20 @@ cd overdrive
 
 # Set up virtual environment and install packages
 python -m venv .venv
-source .venv/bin/activate
-pip install -r requirements.txt
+source .venv/bin/activate  # On Windows: .venv\Scripts\Activate.ps1
+python -m pip install --upgrade pip
+pip install -r requirements-dev.txt
+```
+
+### Project Layout
+
+```text
+scr/   Python source code
+test/  Automated tests
+```
+
+### Development
+
+```bash
+pytest
+ruff check .
