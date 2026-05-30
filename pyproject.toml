@@ -12,10 +12,18 @@ license = { text = "MIT" }
 authors = [
   { name = "jordanovski" }
 ]
-dependencies = []
+dependencies = [
+  "click>=8.1,<9.0",
+  "docker>=7.1,<8.0",
+  "huggingface_hub>=0.34,<2.0",
+  "pydantic>=2.9,<3.0",
+  "PyYAML>=6.0,<7.0",
+  "textual>=0.79,<1.0"
+]
 
 [project.optional-dependencies]
 dev = [
+  "pytest-cov>=5.0,<6.0",
   "pytest>=8.3,<9.0",
   "ruff>=0.6.9,<1.0"
 ]

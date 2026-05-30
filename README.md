@@ -6,10 +6,12 @@ Built entirely using `Python` and `Textual`, Overdrive bridges the gap between r
 
 ## ✨ Features
 
-- **Automated Storage Scanning:** Dynamically parses local Hugging Face storage paths and TrueNAS ZFS dataset mounts to list local models and map architectural metadata automatically.
+- **Automated Model Discovery:** Scans a Hugging Face cache root for model snapshots, extracts config metadata, and applies profile overrides automatically.
 - **Concurrent Runtimes:** Spin up, isolate, and maintain multiple vLLM instances in parallel with built-in port collision protection.
-- **NVIDIA NGC Stack Integration:** Native management utilising optimised `nvcr.io/nvidia/vllm:26.04-py3` container configurations via the official Docker SDK.
-- **Asynchronous Live Logs:** Intercepts and streams real-time console telemetry from processing models cleanly inside the dashboard layout without UI locking.
+- **Preflight Admission Control:** Estimate launch memory usage, account for active managed reservations, and reject launches that exceed a configured GPU budget.
+- **Live Operations Dashboard:** Monitor managed containers, tail logs, and inspect live Docker stats from the CLI or the Textual TUI.
+- **Hugging Face CLI Integration:** Search Hub models and download them through the real `hf` CLI without leaving Overdrive.
+- **NVIDIA NGC Stack Integration:** Manage `nvcr.io/nvidia/vllm:26.04-py3` container configurations through the official Docker SDK.
 
 ## 🚀 Getting Started
 
@@ -24,7 +26,7 @@ Ensure the following environments are active on your host system:
 
 ```bash
 # Clone the repository
-git clone [https://github.com/yourusername/overdrive.git](https://github.com/yourusername/overdrive.git)
+git clone https://github.com/jordanovski/overdrive.git
 cd overdrive
 
 # Set up virtual environment and install packages
@@ -46,3 +48,49 @@ test/  Automated tests
 ```bash
 pytest
 ruff check .
+```
+
+
+### CLI Commands
+
+```bash
+overdrive --hub-root ~/.cache/huggingface/hub scan
+overdrive --profiles ~/.config/overdrive/profiles.yaml scan
+overdrive scan
+overdrive scan --json-output
+overdrive plan org/model-7b --gpu-memory-budget-gb 80
+overdrive plan org/model-7b --json-output
+overdrive profile org/model-7b --preferred-port 8002 --max-model-len 32768
+overdrive profile org/model-7b --json-output --preferred-port 8002
+overdrive up org/model-7b --dry-run
+overdrive up org/model-7b --json-output --dry-run
+overdrive stop org/model-7b --json-output
+overdrive cleanup --json-output
+overdrive ps
+overdrive logs overdrive-org-model-7b --tail 100
+overdrive stats
+overdrive stats --watch --interval 2 --samples 5
+overdrive stats --json-output
+overdrive stats --json-output --watch --interval 2 --samples 5
+overdrive models-search qwen --limit 5
+overdrive models-search llama --author meta-llama --json-output
+overdrive models-download Qwen/Qwen3-8B --dry-run
+overdrive models-download Qwen/Qwen3-8B --local-dir .\models\qwen3-8b
+overdrive tui
+```
+
+Use `hf auth login` first if you need access to gated or private repositories. Overdrive's
+Hugging Face integration shells out to the real `hf` CLI for model discovery and downloads.
+
+The top-level `--hub-root` option overrides the Hugging Face cache root used by `scan`, and
+`--profiles` overrides the YAML profile path.
+
+### Profiles
+
+Overdrive stores model-specific launch overrides in `~/.config/overdrive/profiles.yaml`.
+These profiles can define preferred ports, max model length, tensor parallel size,
+GPU memory budgets, and additional vLLM launch arguments.
+
+Use `overdrive plan <model>` to run a preflight check before launch. It reports the
+projected port assignment, estimated model footprint, active managed reservations,
+and whether the total reservation fits within the configured GPU memory budget.
