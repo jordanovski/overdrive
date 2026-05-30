@@ -22,14 +22,80 @@ Ensure the following environments are active on your host system:
 - **Docker Engine**
 - **Python 3.10+**
 
-### Installation
+### Install Without a Source Checkout
+
+For normal usage on a DGX or workstation, install Overdrive as a packaged CLI so you can
+run `overdrive` from anywhere without keeping the repository checked out locally.
+
+#### Preferred: `pipx`
 
 ```bash
-# Clone the repository
+# Ubuntu/Debian
+sudo apt update
+sudo apt install -y pipx python3-venv
+pipx ensurepath
+exec "$SHELL" -l
+
+# Install from a published wheel or directly from Git
+pipx install /path/to/overdrive-0.1.0-py3-none-any.whl
+# or
+pipx install "git+https://github.com/jordanovski/overdrive.git"
+```
+
+Verify the install:
+
+```bash
+which overdrive
+overdrive --help
+```
+
+#### Update an existing install
+
+```bash
+# Reinstall from a newer wheel
+pipx install --force /path/to/overdrive-0.1.0-py3-none-any.whl
+
+# or refresh from Git
+pipx install --force "git+https://github.com/jordanovski/overdrive.git"
+```
+
+#### Remove Overdrive
+
+```bash
+pipx uninstall overdrive
+```
+
+#### No `sudo` available
+
+If you cannot install `pipx` from the OS package manager, create one dedicated virtual
+environment for Overdrive and expose its console script on your `PATH`:
+
+```bash
+python3 -m venv ~/.local/share/overdrive
+~/.local/share/overdrive/bin/pip install --upgrade pip
+~/.local/share/overdrive/bin/pip install /path/to/overdrive-0.1.0-py3-none-any.whl
+
+mkdir -p ~/.local/bin
+ln -sf ~/.local/share/overdrive/bin/overdrive ~/.local/bin/overdrive
+echo 'export PATH="$HOME/.local/bin:$PATH"' >> ~/.bashrc
+exec "$SHELL" -l
+```
+
+To update this style of install, rerun the `pip install` command against a newer wheel.
+To remove it, delete the environment and launcher:
+
+```bash
+rm -rf ~/.local/share/overdrive
+rm -f ~/.local/bin/overdrive
+```
+
+### Development Setup
+
+If you are contributing to Overdrive itself, use a source checkout instead:
+
+```bash
 git clone https://github.com/jordanovski/overdrive.git
 cd overdrive
-
-# Set up virtual environment and install packages
 python -m venv .venv
 source .venv/bin/activate  # On Windows: .venv\Scripts\Activate.ps1
 python -m pip install --upgrade pip
