@@ -4,6 +4,8 @@ from __future__ import annotations
 
 import contextlib
 import logging
+import os
+import shlex
 import socket
 
 import docker
@@ -161,6 +163,50 @@ class DockerRuntime:
         command.extend(launch.extra_args)
         return command
 
+    def _launch_environment(self) -> dict[str, str]:
+        environment = {
+            "HF_HOME": "/models",
+            "NVIDIA_VISIBLE_DEVICES": "all",
+        }
+        # Forward auth tokens when available so gated models can resolve files.
+        for key in ("HF_TOKEN", "HUGGING_FACE_HUB_TOKEN"):
+            value = os.environ.get(key)
+            if value:
+                environment[key] = value
+        return environment
+
+    def build_docker_run_command(self, metadata: ModelMetadata, launch: LaunchConfig) -> str:
+        container_name = f"overdrive-{_slugify_model_id(metadata.model_id)}-{launch.host_port}"
+        command = self.build_command(launch)
+        parts: list[str] = [
+            "docker",
+            "run",
+            "--detach",
+            "--name",
+            container_name,
+            "--gpus",
+            "all",
+            "-p",
+            f"{launch.host_port}:{INTERNAL_VLLM_PORT}",
+            "-v",
+            f"{metadata.snapshot_path}:/models/current:ro",
+            "--label",
+            f"owner={OVERDRIVE_OWNER}",
+            "--label",
+            f"model={metadata.model_id}",
+            "--label",
+            f"architecture={metadata.architecture}",
+        ]
+        if not launch.keep_alive:
+            parts.append("--rm")
+
+        for key, value in self._launch_environment().items():
+            safe_value = "<set>" if key in {"HF_TOKEN", "HUGGING_FACE_HUB_TOKEN"} else value
+            parts.extend(["-e", f"{key}={safe_value}"])
+
+        parts.extend([VLLM_IMAGE, "vllm", "serve", *command])
+        return shlex.join(parts)
+
     def launch_model(self, metadata: ModelMetadata, launch: LaunchConfig) -> LaunchResult:
         preflight = self.preflight_launch(metadata, launch)
         if not preflight.allowed:
@@ -194,7 +240,7 @@ class DockerRuntime:
             labels=labels,
             ports={f"{INTERNAL_VLLM_PORT}/tcp": launch.host_port},
             volumes={str(metadata.snapshot_path): {"bind": "/models/current", "mode": "ro"}},
-            environment={"HF_HOME": "/models", "NVIDIA_VISIBLE_DEVICES": "all"},
+            environment=self._launch_environment(),
             device_requests=[docker.types.DeviceRequest(count=-1, capabilities=[["gpu"]])],
         )
         return LaunchResult(

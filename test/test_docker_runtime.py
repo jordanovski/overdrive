@@ -85,3 +85,58 @@ def test_list_managed_stats_skips_broken_container_stats() -> None:
     stats = runtime.list_managed_stats()
 
     assert len(stats) == 1
+
+
+def test_launch_environment_includes_hf_tokens(monkeypatch) -> None:
+    monkeypatch.setenv("HF_TOKEN", "hf_token")
+    monkeypatch.setenv("HUGGING_FACE_HUB_TOKEN", "hub_token")
+
+    runtime = DockerRuntime(client=None)
+    env = runtime._launch_environment()
+
+    assert env["HF_HOME"] == "/models"
+    assert env["NVIDIA_VISIBLE_DEVICES"] == "all"
+    assert env["HF_TOKEN"] == "hf_token"
+    assert env["HUGGING_FACE_HUB_TOKEN"] == "hub_token"
+
+
+def test_launch_environment_skips_empty_hf_tokens(monkeypatch) -> None:
+    monkeypatch.delenv("HF_TOKEN", raising=False)
+    monkeypatch.delenv("HUGGING_FACE_HUB_TOKEN", raising=False)
+
+    runtime = DockerRuntime(client=None)
+    env = runtime._launch_environment()
+
+    assert "HF_TOKEN" not in env
+    assert "HUGGING_FACE_HUB_TOKEN" not in env
+
+
+def test_build_docker_run_command_redacts_tokens(monkeypatch) -> None:
+    monkeypatch.setenv("HF_TOKEN", "secret-token")
+    metadata = ModelMetadata(
+        model_id="meta-llama/meta-llama/Meta-Llama-3.1-8B-Instruct",
+        model_name="Meta-Llama-3.1-8B-Instruct",
+        architecture="LlamaForCausalLM",
+        model_type="llama",
+        parameter_size_billions=8.0,
+        dtype="bfloat16",
+        snapshot_path="/models/meta-llama/meta-llama/Meta-Llama-3.1-8B-Instruct",
+        config_path="/models/meta-llama/meta-llama/Meta-Llama-3.1-8B-Instruct/config.json",
+        profile=ModelProfile(),
+    )
+    launch = LaunchConfig(
+        model_id=metadata.model_id,
+        snapshot_path=metadata.snapshot_path,
+        host_port=8000,
+        tensor_parallel_size=1,
+        max_model_len=32768,
+        kv_cache_dtype="auto",
+    )
+
+    runtime = DockerRuntime(client=None)
+    command = runtime.build_docker_run_command(metadata, launch)
+
+    assert "docker run" in command
+    assert "vllm serve --model /models/current" in command
+    assert "HF_TOKEN=<set>" in command
+    assert "secret-token" not in command

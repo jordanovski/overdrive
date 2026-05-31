@@ -152,7 +152,10 @@ def test_models_endpoint_includes_recommendations(monkeypatch) -> None:
     assert payload[0]["recommendations"]["kv_cache_dtype"] == "auto"
     assert payload[0]["command_preview"]["image"] == "nvcr.io/nvidia/vllm:26.04-py3"
     assert payload[0]["command_preview"]["host_port"] == 8000
+    assert payload[0]["command_preview"]["model_source_path"] == str(model.snapshot_path)
+    assert payload[0]["command_preview"]["model_container_path"] == "/models/current"
     assert payload[0]["command_preview"]["shell"].startswith("vllm serve --model")
+    assert payload[0]["command_preview"]["docker_shell"] is None
 
 
 def test_models_diagnostics_endpoint_reports_discovery(monkeypatch) -> None:
@@ -195,6 +198,8 @@ def test_plan_endpoint_returns_display_report(monkeypatch) -> None:
     assert payload["requested_port"] == 8000
     assert "allowed=True" in payload["display"]
     assert payload["command_preview"]["host_port"] == 8000
+    assert payload["command_preview"]["model_mount_source"] == str(model.snapshot_path)
+    assert payload["command_preview"]["model_mount_target"] == "/models/current"
     assert payload["command_preview"]["args"][0:2] == ["--model", "/models/current"]
 
 

@@ -79,19 +79,30 @@ function formatCommandPreview(preview) {
   if (!preview) {
     return 'No command preview available.';
   }
-  return [
+  const lines = [
     `Image: ${preview.image}`,
     `Ports: host ${preview.host_port} -> container ${preview.container_port}`,
     '',
+    'Model Mapping:',
+    `Source on host: ${preview.model_source_path || 'n/a'}`,
+    `Mounted in container: ${preview.model_container_path || '/models/current'}`,
+    `vLLM --model arg: ${preview.model_container_path || '/models/current'}`,
+    'Why this is expected: the selected host path is bind-mounted to the container path above.',
+    '',
+    'Inner vLLM Command:',
     preview.shell,
-  ].join('\n');
+  ];
+  if (preview.docker_shell) {
+    lines.push('', 'Full Docker Launch (equivalent):', preview.docker_shell);
+  }
+  return lines.join('\n');
 }
 
 async function refreshCommandPreview() {
   const model = selectedModel();
   if (!model) {
     ui.commandCaption.textContent = 'Resolved from the current form values';
-    ui.commandPreview.textContent = 'Select a model to preview its vLLM launch command.';
+    ui.commandPreview.textContent = 'Select a model to preview launch commands and how model paths are mapped into the container.';
     return;
   }
   try {

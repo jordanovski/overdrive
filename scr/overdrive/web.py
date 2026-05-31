@@ -208,12 +208,23 @@ def _preview_launch_command(
 ) -> dict[str, object]:
     launch = _launch_config_from_settings(manager, model, settings)
     args = manager.runtime.build_command(launch)
+    model_source_path = str(model.snapshot_path)
+    model_container_path = "/models/current"
+    docker_builder = getattr(manager.runtime, "build_docker_run_command", None)
+    docker_shell = None
+    if callable(docker_builder):
+        docker_shell = docker_builder(model, launch)
     return {
         "image": VLLM_IMAGE,
         "host_port": launch.host_port,
         "container_port": INTERNAL_VLLM_PORT,
         "args": args,
+        "model_source_path": model_source_path,
+        "model_container_path": model_container_path,
+        "model_mount_source": model_source_path,
+        "model_mount_target": model_container_path,
         "shell": shlex.join(["vllm", "serve", *args]),
+        "docker_shell": docker_shell,
     }
 
 
