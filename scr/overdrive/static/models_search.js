@@ -83,7 +83,24 @@ function renderResults() {
         <strong>${item.id}</strong>
         <button class="success-button" type="button" data-download-model="${item.id}">Download</button>
       </div>
-      <div class="meta-line">downloads=${item.downloads} • likes=${item.likes} • task=${item.pipeline_tag || 'n/a'} • lib=${item.library_name || 'n/a'}</div>
+      <div class="hub-result-meta-grid">
+        <div class="hub-result-meta-card">
+          <span class="hub-result-meta-label">Downloads</span>
+          <strong>${item.downloads ?? 'n/a'}</strong>
+        </div>
+        <div class="hub-result-meta-card">
+          <span class="hub-result-meta-label">Likes</span>
+          <strong>${item.likes ?? 'n/a'}</strong>
+        </div>
+        <div class="hub-result-meta-card">
+          <span class="hub-result-meta-label">Task</span>
+          <strong>${item.pipeline_tag || 'n/a'}</strong>
+        </div>
+        <div class="hub-result-meta-card">
+          <span class="hub-result-meta-label">Library</span>
+          <strong>${item.library_name || 'n/a'}</strong>
+        </div>
+      </div>
       <div class="tag-row">${renderTags(item.dgx_tags)}</div>
       <div class="tag-row">${renderTags(item.tags)}</div>
     </article>
@@ -113,6 +130,7 @@ function renderResults() {
 
 async function runSearch() {
   hubUi.searchButton.disabled = true;
+  hubUi.searchButton.textContent = 'Searching...';
   try {
     const payload = await hubJson('/api/hub/search', {
       method: 'POST',
@@ -125,6 +143,7 @@ async function runSearch() {
     logSearch(error.message);
   } finally {
     hubUi.searchButton.disabled = false;
+    hubUi.searchButton.textContent = 'Search Hub';
   }
 }
 

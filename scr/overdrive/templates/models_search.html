@@ -24,7 +24,6 @@
         <strong id="hub-root"></strong>
         <span class="badge">Version</span>
         <strong>{{ app_version }}</strong>
-        <button id="search-models" class="primary-button" type="button">Search Hub</button>
       </div>
     </header>
 
@@ -70,6 +69,10 @@
               <span class="meta-line">Prefer models tagged for vLLM/TensorRT-LLM, Blackwell/Hopper, and FP8/NVFP4-like paths.</span>
             </span>
           </label>
+          <div class="action-row search-action-row">
+            <button id="search-models" class="primary-button" type="submit">Search Hub</button>
+            <span class="muted search-hint">Press Enter in any filter to run the search.</span>
+          </div>
         </form>
         <pre id="search-events" class="event-log">Enter filters and search the Hub.</pre>
       </section>
