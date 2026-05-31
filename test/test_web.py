@@ -341,10 +341,24 @@ def test_benchmark_routes_expose_jobs(monkeypatch) -> None:
 
     assert page_response.status_code == 200
     assert "SWE-bench" in page_response.text
+    assert web_module.__version__ in page_response.text
     assert jobs_response.status_code == 200
     assert jobs_response.json()[0]["job_id"] == "job-1"
     assert create_response.status_code == 202
     assert captured["config"].model_ids == [model.model_id]
+
+
+def test_index_page_renders_app_version(monkeypatch) -> None:
+    model = _model(size=35.0)
+    manager, _ = _manager(model)
+
+    monkeypatch.setattr(web_module, "detect_gpus", lambda: [])
+
+    client = TestClient(web_module.create_app(manager))
+    response = client.get("/")
+
+    assert response.status_code == 200
+    assert web_module.__version__ in response.text
 
 
 def test_model_search_page_renders(monkeypatch) -> None:
@@ -358,6 +372,7 @@ def test_model_search_page_renders(monkeypatch) -> None:
 
     assert response.status_code == 200
     assert "Model Search" in response.text
+    assert web_module.__version__ in response.text
 
 
 def test_hub_search_route_returns_results(monkeypatch) -> None:
