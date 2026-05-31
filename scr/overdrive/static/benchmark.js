@@ -2,6 +2,7 @@ const benchmarkState = {
   models: [],
   selectedModels: new Set(),
   currentJobId: null,
+  diagnostics: null,
 };
 
 const benchmarkUi = {
@@ -17,6 +18,7 @@ const benchmarkUi = {
   caption: document.getElementById('benchmark-job-caption'),
   chart: document.getElementById('benchmark-chart'),
   form: document.getElementById('benchmark-form'),
+  diagnostics: document.getElementById('discovery-diagnostics'),
 };
 
 function logBenchmark(message) {
@@ -90,6 +92,9 @@ function renderBenchmarkJob(job) {
       <div class="meta-line">port: ${run.host_port ?? 'n/a'}</div>
       <div class="meta-line">resolved: ${run.resolved_instances}/${run.submitted_instances}</div>
       <div class="meta-line">rate: ${run.resolution_rate ?? 0}%</div>
+      ${run.launch_command ? `<div class="meta-line command-line">launch: ${run.launch_command}</div>` : ''}
+      ${run.evaluation_command ? `<div class="meta-line command-line">eval: ${run.evaluation_command}</div>` : ''}
+      ${run.evaluation_log_path ? `<div class="meta-line">eval log: ${run.evaluation_log_path}</div>` : ''}
       ${run.error ? `<div class="meta-line">error: ${run.error}</div>` : ''}
     </div>
   `).join('');
@@ -120,9 +125,44 @@ function renderBenchmarkJob(job) {
   }
 }
 
+function renderDiscoveryDiagnostics() {
+  const diagnostics = benchmarkState.diagnostics;
+  if (!diagnostics) {
+    benchmarkUi.diagnostics.textContent = 'Waiting for diagnostics.';
+    return;
+  }
+
+  const missing = diagnostics.missing_config_directories || [];
+  const discovered = diagnostics.discovered_model_ids || [];
+  const lines = [
+    `hub_root=${diagnostics.hub_root}`,
+    `exists=${diagnostics.exists}`,
+    `top_level_directory_count=${diagnostics.top_level_directory_count}`,
+    `config_candidate_count=${diagnostics.candidate_count}`,
+    `discovered_count=${diagnostics.discovered_count}`,
+    `discovered_model_ids=${discovered.join(', ') || 'none'}`,
+  ];
+
+  if (missing.length) {
+    lines.push(`missing_config_directories=${missing.join(', ')}`);
+  }
+
+  const topLevel = diagnostics.top_level || [];
+  for (const entry of topLevel.slice(0, 20)) {
+    lines.push(`- ${entry.name}: config_count=${entry.config_count}`);
+    if (entry.sample_configs?.length) {
+      lines.push(`  sample=${entry.sample_configs.join(', ')}`);
+    }
+  }
+
+  benchmarkUi.diagnostics.textContent = lines.join('\n');
+}
+
 async function refreshBenchmarkModels() {
   benchmarkState.models = await benchmarkJson('/api/models');
+  benchmarkState.diagnostics = await benchmarkJson('/api/models/diagnostics');
   renderBenchmarkModels();
+  renderDiscoveryDiagnostics();
 }
 
 async function refreshBenchmarkJobList() {

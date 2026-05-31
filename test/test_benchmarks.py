@@ -114,6 +114,8 @@ def test_benchmark_service_runs_selected_models_sequentially(monkeypatch, tmp_pa
                 "completed_instances": 1,
                 "resolved_instances": 1,
             },
+            ["python", "-m", "swebench.harness.run_evaluation"],
+            tmp_path / "evaluation.log",
         ),
     )
 
@@ -177,6 +179,8 @@ def test_benchmark_service_continues_after_model_failure(monkeypatch, tmp_path: 
                 "completed_instances": 1,
                 "resolved_instances": 0,
             },
+            ["python", "-m", "swebench.harness.run_evaluation"],
+            tmp_path / "evaluation.log",
         ),
     )
 

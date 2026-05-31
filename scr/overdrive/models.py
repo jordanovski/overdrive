@@ -149,6 +149,9 @@ class BenchmarkModelRun(BaseModel):
         "failed",
     ] = "pending"
     selected_settings: dict[str, int | float | str | None] = Field(default_factory=dict)
+    launch_command: str | None = None
+    evaluation_command: str | None = None
+    evaluation_log_path: Path | None = None
     host_port: int | None = None
     container_name: str | None = None
     predictions_path: Path | None = None

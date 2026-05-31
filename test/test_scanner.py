@@ -162,3 +162,28 @@ def test_scan_model_cache_logs_missing_hub_root(tmp_path: Path, caplog) -> None:
 
     assert models == []
     assert f"Hub root does not exist: {missing_root}" in caplog.text
+
+
+def test_scan_model_cache_logs_directories_without_config(tmp_path: Path, caplog) -> None:
+    hub_root = tmp_path / "models"
+    with_config = hub_root / "qwen3.6-27b"
+    without_config = hub_root / "NVIDIA-Nemotron-3-Nano-Omni"
+    with_config.mkdir(parents=True)
+    without_config.mkdir(parents=True)
+    (with_config / "config.json").write_text(
+        json.dumps(
+            {
+                "architectures": ["Qwen2ForCausalLM"],
+                "model_type": "qwen2",
+                "torch_dtype": "bfloat16",
+            }
+        ),
+        encoding="utf-8",
+    )
+
+    with caplog.at_level(logging.INFO, logger="overdrive.scanner"):
+        models = scan_model_cache(hub_root)
+
+    assert len(models) == 1
+    assert "Top-level directories with no config.json" in caplog.text
+    assert "NVIDIA-Nemotron-3-Nano-Omni" in caplog.text

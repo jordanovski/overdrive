@@ -32,6 +32,7 @@ from overdrive.models import (
     ModelProfile,
     PreflightReport,
 )
+from overdrive.scanner import model_cache_diagnostics
 from overdrive.state import EngineStateManager
 
 PACKAGE_ROOT = Path(__file__).resolve().parent
@@ -261,6 +262,16 @@ def create_app(
     async def models() -> list[dict[str, object]]:
         gpus: list[GPUDevice] = app.state.gpus
         return [_serialize_model(manager, model, gpus) for model in manager.discover_models()]
+
+    @app.get("/api/models/diagnostics")
+    async def model_diagnostics() -> dict[str, object]:
+        models = manager.discover_models()
+        diagnostics = model_cache_diagnostics(manager.hub_root)
+        return {
+            **diagnostics,
+            "discovered_count": len(models),
+            "discovered_model_ids": [model.model_id for model in models],
+        }
 
     @app.post("/api/hub/search")
     async def hub_search(search: HubSearchRequest) -> dict[str, object]:

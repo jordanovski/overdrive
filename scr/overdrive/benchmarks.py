@@ -6,6 +6,7 @@ import json
 import os
 import platform
 import re
+import shlex
 import subprocess
 import sys
 import threading
@@ -253,17 +254,30 @@ class BenchmarkService:
                 gpu_memory_budget_gb=self._setting_float(settings, "gpu_memory_budget_gb"),
                 keep_alive=False,
             )
+            launch_args = list(getattr(launch_result, "command", []) or [])
+            launch_command = (
+                shlex.join(["vllm", "serve", *launch_args]) if launch_args else None
+            )
             self._mutate_job(
                 job_id,
                 lambda job: self._mark_model(
                     job,
                     model_id,
                     status="waiting_for_vllm",
+                    launch_command=launch_command,
                     host_port=launch_result.host_port,
                     container_name=launch_result.container_name,
                     event=f"Waiting for vLLM readiness on port {launch_result.host_port}.",
                 ),
             )
+            if launch_command:
+                self._mutate_job(
+                    job_id,
+                    lambda job: self._append_event(
+                        job,
+                        f"Launch command for {model_id}: {launch_command}",
+                    ),
+                )
             served_model = self._wait_for_vllm(launch_result.host_port)
             model_root = self._job_root(job_id) / _slugify_model_id(model_id)
             predictions_path = self._write_predictions(
@@ -285,7 +299,7 @@ class BenchmarkService:
                     event=f"Evaluating predictions for {model_id} with SWE-bench.",
                 ),
             )
-            report_path, report = self._run_evaluation(
+            report_path, report, evaluation_command, evaluation_log_path = self._run_evaluation(
                 job_id=job_id,
                 model_id=model_id,
                 config=config,
@@ -306,6 +320,8 @@ class BenchmarkService:
                     model_id,
                     status="completed",
                     report_path=report_path,
+                    evaluation_command=shlex.join(evaluation_command),
+                    evaluation_log_path=evaluation_log_path,
                     submitted_instances=submitted_instances,
                     completed_instances=completed_instances,
                     resolved_instances=resolved_instances,
@@ -473,7 +489,7 @@ class BenchmarkService:
         predictions_path: Path,
         instance_ids: list[str],
         output_dir: Path,
-    ) -> tuple[Path, dict[str, object]]:
+    ) -> tuple[Path, dict[str, object], list[str], Path]:
         report_dir = output_dir / "evaluation_reports"
         report_dir.mkdir(parents=True, exist_ok=True)
         run_id = f"benchmark-{job_id[:8]}-{_slugify_model_id(model_id)}"
@@ -502,6 +518,23 @@ class BenchmarkService:
             command.extend(["--instance_ids", *instance_ids])
         if platform.machine().lower() in {"arm64", "aarch64"}:
             command.extend(["--namespace", "none"])
+        self._mutate_job(
+            job_id,
+            lambda job: self._mark_model(
+                job,
+                model_id,
+                status="evaluating",
+                evaluation_command=shlex.join(command),
+                evaluation_log_path=output_dir / "evaluation.log",
+            ),
+        )
+        self._mutate_job(
+            job_id,
+            lambda job: self._append_event(
+                job,
+                f"SWE-bench command for {model_id}: {shlex.join(command)}",
+            ),
+        )
         result = subprocess.run(command, capture_output=True, text=True, check=False)
         log_path = output_dir / "evaluation.log"
         log_path.write_text(result.stdout + "\n" + result.stderr, encoding="utf-8")
@@ -512,7 +545,7 @@ class BenchmarkService:
         report_path = report_dir / f"{model_id.replace('/', '__')}.{run_id}.json"
         if not report_path.exists():
             raise RuntimeError(f"SWE-bench report not found at {report_path}.")
-        return report_path, json.loads(report_path.read_text(encoding="utf-8"))
+        return report_path, json.loads(report_path.read_text(encoding="utf-8")), command, log_path
 
     @staticmethod
     def _setting_int(settings: dict[str, object], key: str) -> int | None:

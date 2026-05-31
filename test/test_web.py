@@ -155,6 +155,23 @@ def test_models_endpoint_includes_recommendations(monkeypatch) -> None:
     assert payload[0]["command_preview"]["shell"].startswith("vllm serve --model")
 
 
+def test_models_diagnostics_endpoint_reports_discovery(monkeypatch) -> None:
+    model = _model(size=35.0)
+    manager, _ = _manager(model)
+
+    monkeypatch.setattr(web_module, "detect_gpus", lambda: [])
+
+    client = TestClient(web_module.create_app(manager))
+
+    response = client.get("/api/models/diagnostics")
+
+    assert response.status_code == 200
+    payload = response.json()
+    assert payload["discovered_count"] == 1
+    assert payload["discovered_model_ids"] == [model.model_id]
+    assert payload["hub_root"] == str(manager.hub_root)
+
+
 def test_plan_endpoint_returns_display_report(monkeypatch) -> None:
     model = _model(size=35.0)
     manager, _ = _manager(model)

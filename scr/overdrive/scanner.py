@@ -67,6 +67,35 @@ def _discover_config_paths(hub_root: Path) -> list[Path]:
     return config_paths
 
 
+def model_cache_diagnostics(
+    hub_root: Path,
+    candidate_paths: list[Path] | None = None,
+) -> dict[str, object]:
+    candidates = candidate_paths if candidate_paths is not None else _discover_config_paths(hub_root)
+    top_level: list[dict[str, object]] = []
+    if hub_root.exists():
+        for child in sorted(path for path in hub_root.iterdir() if path.is_dir()):
+            child_candidates = [path for path in candidates if path.is_relative_to(child)]
+            top_level.append(
+                {
+                    "name": child.name,
+                    "path": str(child),
+                    "config_count": len(child_candidates),
+                    "sample_configs": [str(path) for path in child_candidates[:3]],
+                }
+            )
+    missing = [item["name"] for item in top_level if int(item["config_count"]) == 0]
+    return {
+        "hub_root": str(hub_root),
+        "exists": hub_root.exists(),
+        "candidate_count": len(candidates),
+        "candidate_paths": [str(path) for path in candidates[:25]],
+        "top_level_directory_count": len(top_level),
+        "top_level": top_level,
+        "missing_config_directories": missing,
+    }
+
+
 def scan_model_cache(hub_root: Path, profiles_path: Path | None = None) -> list[ModelMetadata]:
     if not hub_root.exists():
         LOGGER.warning("Hub root does not exist: %s", hub_root)
@@ -77,6 +106,17 @@ def scan_model_cache(hub_root: Path, profiles_path: Path | None = None) -> list[
     discovered: list[ModelMetadata] = []
     candidate_paths = _discover_config_paths(hub_root)
     LOGGER.info("Found %d config.json candidate(s) under %s", len(candidate_paths), hub_root)
+    diagnostics = model_cache_diagnostics(hub_root, candidate_paths)
+    missing_dirs = diagnostics["missing_config_directories"]
+    if missing_dirs:
+        LOGGER.warning(
+            "Top-level directories with no config.json under %s: %s",
+            hub_root,
+            ", ".join(str(item) for item in missing_dirs),
+        )
+    candidate_preview = diagnostics["candidate_paths"]
+    if candidate_preview:
+        LOGGER.info("Config candidates under %s: %s", hub_root, ", ".join(candidate_preview))
 
     for config_path in candidate_paths:
         LOGGER.debug("Inspecting config candidate %s", config_path)
