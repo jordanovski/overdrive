@@ -98,7 +98,7 @@ def test_benchmark_service_runs_selected_models_sequentially(monkeypatch, tmp_pa
             "gpu_memory_budget_gb": 110.0,
         },
     )
-    monkeypatch.setattr(service, "_wait_for_vllm", lambda host_port, *, container_name=None: "served-model")
+    monkeypatch.setattr(service, "_wait_for_vllm", lambda host_port, *, container_name=None, job_id=None: "served-model")
     monkeypatch.setattr(
         service,
         "_write_predictions",
@@ -163,7 +163,7 @@ def test_benchmark_service_continues_after_model_failure(monkeypatch, tmp_path: 
             "gpu_memory_budget_gb": 110.0,
         },
     )
-    monkeypatch.setattr(service, "_wait_for_vllm", lambda host_port, *, container_name=None: "served-model")
+    monkeypatch.setattr(service, "_wait_for_vllm", lambda host_port, *, container_name=None, job_id=None: "served-model")
     monkeypatch.setattr(
         service,
         "_write_predictions",
@@ -266,7 +266,7 @@ def test_benchmark_service_reuses_cached_results(monkeypatch, tmp_path: Path) ->
             "gpu_memory_budget_gb": 110.0,
         },
     )
-    monkeypatch.setattr(service, "_wait_for_vllm", lambda host_port, *, container_name=None: "served-model")
+    monkeypatch.setattr(service, "_wait_for_vllm", lambda host_port, *, container_name=None, job_id=None: "served-model")
     monkeypatch.setattr(
         service,
         "_write_predictions",

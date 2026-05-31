@@ -27,12 +27,19 @@ from overdrive.hardware import (
     recommended_max_model_len,
     recommended_tensor_parallel_size,
 )
-from overdrive.models import BenchmarkConfig, BenchmarkJob, BenchmarkModelRun, ModelMetadata
+from overdrive.models import (
+    BenchmarkConfig,
+    BenchmarkJob,
+    BenchmarkModelRun,
+    LaunchConfig,
+    ModelMetadata,
+)
 from overdrive.paths import benchmarks_root
 from overdrive.state import EngineStateManager
 
-VLLM_READY_TIMEOUT_SECONDS = 600
-VLLM_READY_POLL_SECONDS = 2
+VLLM_READY_TIMEOUT_SECONDS = 1800  # 30 min — cold starts with CUDA kernel compilation can be slow
+VLLM_READY_POLL_SECONDS = 5
+VLLM_LOG_INTERVAL_SECONDS = 30  # stream container logs into job events this often during the wait
 SWE_SYSTEM_PROMPT = (
     "You are a software engineer solving a SWE-bench issue. "
     "Return only a valid unified git diff patch that can be applied with git apply. "
@@ -221,8 +228,49 @@ class BenchmarkService:
 
     def _hydrate_job_view(self, job: BenchmarkJob) -> BenchmarkJob:
         for model_run in job.model_runs:
+            if model_run.docker_run_command is None:
+                model_run.docker_run_command = self._reconstruct_docker_run_command(model_run)
+            if model_run.vllm_probe_url is None and model_run.host_port is not None:
+                model_run.vllm_probe_url = f"{_runtime_base_url(model_run.host_port)}/v1/models"
             model_run.evaluation_log_excerpt = self._read_log_excerpt(model_run.evaluation_log_path)
         return job
+
+    def _reconstruct_docker_run_command(self, model_run: BenchmarkModelRun) -> str | None:
+        if model_run.host_port is None:
+            return None
+        if not hasattr(self.manager.runtime, "build_docker_run_command"):
+            return None
+        try:
+            model = self.manager.get_model(model_run.model_id)
+        except KeyError:
+            return None
+
+        settings = model_run.selected_settings
+        launch = LaunchConfig(
+            model_id=model.model_id,
+            snapshot_path=model.snapshot_path,
+            host_port=model_run.host_port,
+            max_model_len=self._setting_int(settings, "max_model_len"),
+            tensor_parallel_size=(
+                self._setting_int(settings, "tensor_parallel_size")
+                or model.profile.tensor_parallel_size
+            ),
+            kv_cache_dtype=(
+                self._setting_str(settings, "kv_cache_dtype")
+                if "kv_cache_dtype" in settings
+                else model.profile.kv_cache_dtype
+            ),
+            gpu_memory_utilization=model.profile.gpu_memory_utilization,
+            gpu_memory_budget_gb=(
+                self._setting_float(settings, "gpu_memory_budget_gb")
+                if "gpu_memory_budget_gb" in settings
+                else model.profile.gpu_memory_budget_gb
+            ),
+            extra_args=list(model.profile.extra_args),
+            keep_alive=True,
+            dry_run=False,
+        )
+        return self.manager.runtime.build_docker_run_command(model, launch)
 
     @staticmethod
     def _read_log_excerpt(path: Path | None, *, max_lines: int = 40) -> str | None:
@@ -512,6 +560,7 @@ class BenchmarkService:
             served_model = self._wait_for_vllm(
                 launch_result.host_port,
                 container_name=launch_result.container_name,
+                job_id=job_id,
             )
             model_root = self._job_root(job_id) / _slugify_model_id(model_id)
             predictions_path = self._write_predictions(
@@ -637,9 +686,16 @@ class BenchmarkService:
                 dataset = list(dataset)[:limit]
         return [dict(instance) for instance in dataset]
 
-    def _wait_for_vllm(self, host_port: int, *, container_name: str | None = None) -> str:
+    def _wait_for_vllm(
+        self,
+        host_port: int,
+        *,
+        container_name: str | None = None,
+        job_id: str | None = None,
+    ) -> str:
         deadline = time.monotonic() + VLLM_READY_TIMEOUT_SECONDS
         base_url = _runtime_base_url(host_port)
+        last_log_emit = time.monotonic()
         while time.monotonic() < deadline:
             # Bail out immediately if the container has exited before vLLM was ready.
             if container_name is not None:
@@ -659,6 +715,26 @@ class BenchmarkService:
                         return str(data[0].get("id") or "")
             except requests.RequestException:
                 pass
+            # Periodically stream the last few container log lines into job events
+            # so the user can see whether vLLM is loading, compiling, or stuck.
+            now = time.monotonic()
+            if job_id is not None and container_name is not None and (now - last_log_emit) >= VLLM_LOG_INTERVAL_SECONDS:
+                last_log_emit = now
+                elapsed = int(now - (deadline - VLLM_READY_TIMEOUT_SECONDS))
+                try:
+                    logs = self.manager.runtime.stream_logs(container_name, tail=5)
+                    if logs:
+                        tail = " | ".join(line.strip() for line in logs[-5:] if line.strip())
+                        if tail:
+                            self._mutate_job(
+                                job_id,
+                                lambda job, t=tail, e=elapsed: self._append_event(
+                                    job,
+                                    f"vLLM container log ({e}s elapsed): {t}",
+                                ),
+                            )
+                except Exception:  # noqa: BLE001
+                    pass
             time.sleep(VLLM_READY_POLL_SECONDS)
         raise RuntimeError(f"Timed out waiting for vLLM to become ready on port {host_port}.")
 

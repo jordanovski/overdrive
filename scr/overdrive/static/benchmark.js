@@ -154,15 +154,15 @@ function renderBenchmarkCommands(job) {
   }
   benchmarkUi.commands.className = 'commands-list';
 
-  const host = job.config._runtime_host || 'host.docker.internal';
   const sections = job.model_runs.map((run) => {
     const steps = [];
+    let missingStepOne = false;
 
     // Step 1: docker run
     if (run.docker_run_command) {
       steps.push({ label: 'Step 1 — Launch vLLM container', cmd: run.docker_run_command });
     } else if (run.container_name && run.host_port) {
-      steps.push({ label: 'Step 1 — Launch vLLM container', cmd: `# docker_run_command not yet captured (run not started or old job)` });
+      missingStepOne = true;
     }
 
     // Step 2: readiness probe
@@ -190,11 +190,16 @@ function renderBenchmarkCommands(job) {
       </div>
     `).join('');
 
+    const missingStepOneHtml = missingStepOne
+      ? '<div class="meta-line muted">Step 1 launch command is unavailable for this historical run.</div>'
+      : '';
+
     return `<div class="command-block" data-model-id="${escapeHtml(run.model_id)}">
       <div class="command-block-header">
         <strong>${escapeHtml(run.display_name || run.model_id)}</strong>
         <span class="status-pill ${statusTone(run.status)}">${run.status.replaceAll('_', ' ')}</span>
       </div>
+      ${missingStepOneHtml}
       ${stepsHtml}
     </div>`;
   });
@@ -396,7 +401,6 @@ function renderDiscoveryDiagnostics() {
   const discovered = diagnostics.discovered_model_ids || [];
   const topLevel = diagnostics.top_level || [];
 
-  // Stats row
   const rootOk = diagnostics.exists;
   const stats = [
     { label: 'Hub root', value: diagnostics.hub_root, mono: true },
@@ -406,44 +410,48 @@ function renderDiscoveryDiagnostics() {
     { label: 'Models discovered', value: diagnostics.discovered_count ?? '—' },
   ];
 
-  const statsHtml = `<div class="diag-stats">${stats.map((s) => `
-    <div class="diag-stat${s.warn ? ' diag-warn' : ''}">
-      <span class="diag-stat-label">${escapeHtml(s.label)}</span>
-      <span class="diag-stat-value${s.mono ? ' diag-mono' : ''}">${escapeHtml(String(s.value))}</span>
+  const statsHtml = `<div class="diag-facts">${stats.map((s) => `
+    <div class="diag-fact${s.warn ? ' diag-warn' : ''}">
+      <span class="diag-fact-label">${escapeHtml(s.label)}</span>
+      <span class="diag-fact-value${s.mono ? ' diag-mono' : ''}">${escapeHtml(String(s.value))}</span>
     </div>`).join('')}
   </div>`;
 
-  // Discovered model IDs
   const modelListHtml = discovered.length
-    ? `<div class="diag-model-ids">${discovered.map((id) => `<span class="tag-chip">${escapeHtml(id)}</span>`).join('')}</div>`
+    ? `
+      <div class="diag-section">
+        <div class="diag-section-title">Discovered models</div>
+        <div class="diag-model-ids">${discovered.map((id) => `<span class="tag-chip">${escapeHtml(id)}</span>`).join('')}</div>
+      </div>`
     : '';
 
-  // Missing dirs warning
   const missingHtml = missing.length
     ? `<div class="diag-warn-block"><strong>Folders with no config.json:</strong> ${missing.map((m) => `<code>${escapeHtml(m)}</code>`).join(', ')}</div>`
     : '';
 
-  // Per-folder table
-  const folderRowsHtml = topLevel.slice(0, 20).map((entry) => {
+  const folderCardsHtml = topLevel.slice(0, 20).map((entry) => {
     const ok = entry.config_count > 0 || entry.heuristic_model_like;
     const sample = entry.sample_configs?.length
-      ? `<div class="diag-sample">${escapeHtml(entry.sample_configs[0])}</div>`
+      ? `<div class="diag-folder-sample">${escapeHtml(entry.sample_configs[0])}</div>`
       : '';
-    return `<tr class="${ok ? '' : 'diag-row-warn'}">
-      <td class="diag-mono">${escapeHtml(entry.name)}</td>
-      <td>${entry.config_count}</td>
-      <td>${entry.heuristic_model_like ? 'yes' : '—'}</td>
-      <td class="diag-sample-cell">${sample}</td>
-    </tr>`;
+    return `
+      <article class="diag-folder${ok ? '' : ' diag-folder-warn'}">
+        <div class="diag-folder-header">
+          <strong class="diag-mono">${escapeHtml(entry.name)}</strong>
+          <span class="diag-folder-status">${entry.config_count > 0 ? `${entry.config_count} config${entry.config_count === 1 ? '' : 's'}` : (entry.heuristic_model_like ? 'auto-detected' : 'missing config')}</span>
+        </div>
+        <div class="diag-folder-meta">configs ${entry.config_count} • auto-detected ${entry.heuristic_model_like ? 'yes' : 'no'}</div>
+        ${sample}
+      </article>`;
   }).join('');
 
-  const tableHtml = topLevel.length ? `
-    <table class="diag-table">
-      <thead><tr><th>Folder</th><th>Configs</th><th>Auto-detected</th><th>Sample path</th></tr></thead>
-      <tbody>${folderRowsHtml}</tbody>
-    </table>` : '';
+  const folderListHtml = topLevel.length ? `
+    <div class="diag-section">
+      <div class="diag-section-title">Folders scanned</div>
+      <div class="diag-folder-list">${folderCardsHtml}</div>
+    </div>` : '';
 
-  benchmarkUi.diagnostics.innerHTML = statsHtml + modelListHtml + missingHtml + tableHtml;
+  benchmarkUi.diagnostics.innerHTML = statsHtml + modelListHtml + missingHtml + folderListHtml;
 }
 
 async function refreshBenchmarkModels() {
