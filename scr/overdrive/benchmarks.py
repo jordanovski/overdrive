@@ -477,7 +477,9 @@ class BenchmarkService:
                 tensor_parallel_size=self._setting_int(settings, "tensor_parallel_size"),
                 kv_cache_dtype=self._setting_str(settings, "kv_cache_dtype"),
                 gpu_memory_budget_gb=self._setting_float(settings, "gpu_memory_budget_gb"),
-                keep_alive=False,
+                # keep_alive=True omits --rm so an exited container stays visible and
+                # its logs are readable for diagnostics.
+                keep_alive=True,
             )
             launch_args = list(getattr(launch_result, "command", []) or [])
             launch_command = (
@@ -503,7 +505,10 @@ class BenchmarkService:
                         f"Launch command for {model_id}: {launch_command}",
                     ),
                 )
-            served_model = self._wait_for_vllm(launch_result.host_port)
+            served_model = self._wait_for_vllm(
+                launch_result.host_port,
+                container_name=launch_result.container_name,
+            )
             model_root = self._job_root(job_id) / _slugify_model_id(model_id)
             predictions_path = self._write_predictions(
                 model=model,
@@ -628,10 +633,19 @@ class BenchmarkService:
                 dataset = list(dataset)[:limit]
         return [dict(instance) for instance in dataset]
 
-    def _wait_for_vllm(self, host_port: int) -> str:
+    def _wait_for_vllm(self, host_port: int, *, container_name: str | None = None) -> str:
         deadline = time.monotonic() + VLLM_READY_TIMEOUT_SECONDS
         base_url = _runtime_base_url(host_port)
         while time.monotonic() < deadline:
+            # Bail out immediately if the container has exited before vLLM was ready.
+            if container_name is not None:
+                for record in self.manager.runtime.list_managed_containers():
+                    if record.name == container_name and record.status in ("exited", "dead", "removing"):
+                        logs = self.manager.runtime.stream_logs(container_name, tail=50)
+                        excerpt = "\n".join(logs[-30:]) if logs else "(no logs captured)"
+                        raise RuntimeError(
+                            f"Container {container_name!r} exited before vLLM was ready.\n{excerpt}"
+                        )
             try:
                 response = requests.get(f"{base_url}/v1/models", timeout=10)
                 if response.ok:

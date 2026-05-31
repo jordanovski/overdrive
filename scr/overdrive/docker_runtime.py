@@ -259,10 +259,16 @@ class DockerRuntime:
         containers = self.client.containers.list(all=True, filters=filters)
         for container in containers:
             if container_name and container.name == container_name:
-                container.stop()
+                with contextlib.suppress(NotFound, DockerException):
+                    container.stop()
+                with contextlib.suppress(NotFound, DockerException):
+                    container.remove(force=True)
                 return True
             if model_id and container.labels.get("model") == model_id:
-                container.stop()
+                with contextlib.suppress(NotFound, DockerException):
+                    container.stop()
+                with contextlib.suppress(NotFound, DockerException):
+                    container.remove(force=True)
                 return True
         return False
 
@@ -274,6 +280,8 @@ class DockerRuntime:
         ):
             with contextlib.suppress(NotFound, DockerException):
                 container.stop()
+            with contextlib.suppress(NotFound, DockerException):
+                container.remove(force=True)
                 count += 1
         return count
 

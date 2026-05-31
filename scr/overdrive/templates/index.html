@@ -52,6 +52,13 @@
             <h2>Launch Settings</h2>
             <span class="muted">Web replacement for the previous TUI controls</span>
           </div>
+          <div class="action-row">
+            <button id="plan-action" class="primary-button" type="button">Plan Launch</button>
+            <button id="launch-action" class="success-button" type="button">Launch Model</button>
+            <button id="save-profile-action" class="ghost-button" type="button">Save Profile</button>
+            <button id="stop-action" class="warning-button" type="button">Stop Model</button>
+            <button id="cleanup-action" class="danger-button" type="button">Cleanup All</button>
+          </div>
           <form id="settings-form" class="settings-form">
             <label>
               <span>Port</span>
@@ -74,13 +81,6 @@
               <input id="gpu-budget" name="gpu_memory_budget_gb" type="number" min="0" step="0.1" placeholder="110">
             </label>
           </form>
-          <div class="action-row">
-            <button id="plan-action" class="primary-button" type="button">Plan Launch</button>
-            <button id="launch-action" class="success-button" type="button">Launch Model</button>
-            <button id="save-profile-action" class="ghost-button" type="button">Save Profile</button>
-            <button id="stop-action" class="warning-button" type="button">Stop Model</button>
-            <button id="cleanup-action" class="danger-button" type="button">Cleanup Managed</button>
-          </div>
           <div class="command-preview">
             <div class="section-heading">
               <h2>Launch Command and Model Mapping</h2>

@@ -175,15 +175,17 @@ function renderSelected() {
 
 function renderRuntime() {
   if (!state.containers.length) {
-    ui.containers.innerHTML = 'No active Overdrive containers.';
+    ui.containers.innerHTML = '<span class="muted">No active Overdrive containers.</span>';
   } else {
-    ui.containers.innerHTML = state.containers.map((item) => `
-      <div class="status-card">
+    ui.containers.innerHTML = state.containers.map((item) => {
+      const failed = item.status === 'exited' || item.status === 'dead';
+      return `
+      <div class="status-card ${failed ? 'status-error' : ''}">
         <strong>${item.model_id || item.name}</strong>
-        <div class="meta-line">${item.status} • port ${item.host_port ?? 'n/a'}</div>
+        <div class="meta-line">${item.status} • port ${item.host_port ?? 'n/a'}${failed ? ' — container exited, check logs below' : ''}</div>
         <div class="meta-line">${item.image}</div>
-      </div>
-    `).join('');
+      </div>`;
+    }).join('');
   }
 
   if (!state.stats.length) {
@@ -271,13 +273,28 @@ ui.planAction.addEventListener('click', async () => {
 });
 
 ui.launchAction.addEventListener('click', async () => {
-  const payload = await performAction(
-    '/api/models/{modelId}/launch',
-    (result) => `${result.status}: ${result.container_name} on port ${result.host_port}`,
-  );
-  if (payload) {
-    await refreshRuntime();
-    await refreshLogs();
+  ui.launchAction.disabled = true;
+  ui.launchAction.textContent = 'Launching…';
+  try {
+    const payload = await performAction(
+      '/api/models/{modelId}/launch',
+      (result) => `${result.status}: ${result.container_name} on port ${result.host_port}`,
+    );
+    if (payload) {
+      // Poll aggressively for 60 seconds so container status and logs appear quickly.
+      let polls = 0;
+      const rapidPoll = window.setInterval(async () => {
+        await refreshRuntime();
+        await refreshLogs();
+        polls++;
+        if (polls >= 30) {
+          window.clearInterval(rapidPoll);
+        }
+      }, 1000);
+    }
+  } finally {
+    ui.launchAction.disabled = false;
+    ui.launchAction.textContent = 'Launch Model';
   }
 });
 

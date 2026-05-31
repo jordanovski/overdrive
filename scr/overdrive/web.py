@@ -388,7 +388,8 @@ def create_app(
     @app.post("/api/models/{model_id:path}/launch")
     async def launch(model_id: str, settings: LaunchSettings) -> dict[str, object]:
         try:
-            result = manager.launch_model(model_id, **settings.model_dump())
+            # keep_alive=True omits --rm so exited containers remain visible for diagnostics.
+            result = manager.launch_model(model_id, **settings.model_dump(), keep_alive=True)
         except KeyError as exc:
             raise HTTPException(status_code=404, detail=str(exc)) from exc
         except RuntimeError as exc:
