@@ -96,6 +96,18 @@ body {
   color: var(--text);
 }
 
+.topbar-info.storage-ok strong {
+  color: #7dd3b0;
+}
+
+.topbar-info.storage-warning strong {
+  color: #f2c073;
+}
+
+.topbar-info.storage-critical strong {
+  color: #f1b1a8;
+}
+
 .topbar-btn {
   padding: 5px 14px;
   font-size: 0.82rem;

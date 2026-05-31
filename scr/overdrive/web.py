@@ -4,6 +4,7 @@ from __future__ import annotations
 
 from pathlib import Path
 import shlex
+import shutil
 
 import uvicorn
 from fastapi import FastAPI, HTTPException, Request
@@ -220,6 +221,33 @@ def _preview_launch_command(
     }
 
 
+def _resolve_existing_path(path: Path) -> Path:
+    current = path
+    while not current.exists() and current.parent != current:
+        current = current.parent
+    return current
+
+
+def _hub_storage_summary(hub_root: Path) -> dict[str, object]:
+    probe_path = _resolve_existing_path(hub_root)
+    usage = shutil.disk_usage(probe_path)
+    total_gb = round(usage.total / (1024 ** 3), 1)
+    used_gb = round(usage.used / (1024 ** 3), 1)
+    free_gb = round(usage.free / (1024 ** 3), 1)
+    free_percent = round((usage.free / usage.total) * 100, 1) if usage.total else 0.0
+    return {
+        "hub_root": str(hub_root),
+        "probe_path": str(probe_path),
+        "total_bytes": usage.total,
+        "used_bytes": usage.used,
+        "free_bytes": usage.free,
+        "total_gb": total_gb,
+        "used_gb": used_gb,
+        "free_gb": free_gb,
+        "free_percent": free_percent,
+    }
+
+
 def create_app(
     manager: EngineStateManager,
     benchmark_service: BenchmarkService | None = None,
@@ -302,6 +330,10 @@ def create_app(
             "hub_root": str(manager.hub_root),
             "models": models,
         }
+
+    @app.get("/api/hub/storage")
+    async def hub_storage() -> dict[str, object]:
+        return _hub_storage_summary(manager.hub_root)
 
     @app.post("/api/hub/download")
     async def hub_download(payload: HubDownloadRequest) -> dict[str, object]:

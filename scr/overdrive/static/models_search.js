@@ -4,6 +4,7 @@ const hubState = {
 
 const hubUi = {
   hubRoot: document.getElementById('hub-root'),
+  hubStorage: document.getElementById('hub-storage'),
   searchForm: document.getElementById('hub-search-form'),
   searchButton: document.getElementById('search-models'),
   resultCount: document.getElementById('result-count'),
@@ -18,6 +19,43 @@ function logSearch(message) {
 
 function logDownload(message) {
   hubUi.downloadLog.textContent = `${new Date().toLocaleTimeString()}  ${message}\n${hubUi.downloadLog.textContent}`.trim();
+}
+
+function formatGiB(value) {
+  if (value == null || !Number.isFinite(Number(value))) {
+    return 'n/a';
+  }
+  return `${Number(value).toLocaleString(undefined, { maximumFractionDigits: 1 })} GiB`;
+}
+
+function renderHubStorage(storage) {
+  if (!hubUi.hubStorage) {
+    return;
+  }
+  if (!storage) {
+    hubUi.hubStorage.className = 'topbar-info storage-warning';
+    hubUi.hubStorage.innerHTML = '<span class="muted">Free Disk:</span> <strong>unknown</strong>';
+    return;
+  }
+  const freePercent = Number(storage.free_percent || 0);
+  let severityClass = 'storage-ok';
+  if (freePercent <= 5) {
+    severityClass = 'storage-critical';
+  } else if (freePercent <= 15) {
+    severityClass = 'storage-warning';
+  }
+  hubUi.hubStorage.className = `topbar-info ${severityClass}`;
+  hubUi.hubStorage.innerHTML = `<span class="muted">Free Disk:</span> <strong>${formatGiB(storage.free_gb)}</strong> <span class="muted">(${freePercent.toFixed(1)}%)</span>`;
+}
+
+async function refreshHubStorage() {
+  try {
+    const payload = await hubJson('/api/hub/storage');
+    renderHubStorage(payload);
+  } catch (error) {
+    renderHubStorage(null);
+    logSearch(`Storage check failed: ${error.message}`);
+  }
 }
 
 async function hubJson(url, options = {}) {
@@ -145,6 +183,7 @@ function renderResults() {
         statusEl.textContent = `Saved to ${payload.local_dir}`;
         button.textContent = 'Re-download';
         logDownload(`Downloaded ${payload.model_id} to ${payload.local_dir}`);
+        await refreshHubStorage();
       } catch (error) {
         statusEl.className = 'dl-inline-status dl-error';
         statusEl.textContent = error.message;
@@ -183,4 +222,5 @@ hubUi.searchForm.addEventListener('submit', (event) => {
 });
 
 hubUi.hubRoot.textContent = document.body.dataset.hubRoot;
+refreshHubStorage();
 renderResults();
