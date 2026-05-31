@@ -32,3 +32,6 @@ jobs:
 
       - name: Run test suite
         run: python -m pytest test
+
+      - name: Build container image
+        run: docker build --tag overdrive:web .

@@ -309,3 +309,23 @@ def test_stats_command_json_watch_output(monkeypatch) -> None:
     assert runtime.calls == 2
     assert payloads[0]["sample"] == 1
     assert payloads[1]["sample"] == 2
+
+
+def test_web_command_invokes_runner(monkeypatch) -> None:
+    fake_manager = SimpleNamespace()
+    captured: dict[str, object] = {}
+
+    monkeypatch.setattr(cli_module, "build_manager", lambda hub_root, profiles: fake_manager)
+    monkeypatch.setattr(
+        cli_module,
+        "run_web",
+        lambda manager, host, port: captured.update(
+            {"manager": manager, "host": host, "port": port}
+        ),
+    )
+
+    runner = CliRunner()
+    result = runner.invoke(cli, ["web", "--host", "0.0.0.0", "--port", "9090"])
+
+    assert result.exit_code == 0
+    assert captured == {"manager": fake_manager, "host": "0.0.0.0", "port": 9090}

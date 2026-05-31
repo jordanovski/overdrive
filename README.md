@@ -1,15 +1,15 @@
 # Overdrive 🏎️
 
-Overdrive is a performance-focused Terminal User Interface (TUI) and CLI tool designed specifically to orchestrate, monitor, and manage concurrent [vLLM](https://github.com/vllm-project/vllm) execution instances locally on your **NVIDIA DGX Spark**.
+Overdrive is a performance-focused web UI and CLI tool designed specifically to orchestrate, monitor, and manage concurrent [vLLM](https://github.com/vllm-project/vllm) execution instances locally on your **NVIDIA DGX Spark**.
 
-Built entirely using `Python` and `Textual`, Overdrive bridges the gap between raw hardware capabilities and local multi-agent or engineering workflows, bypassing brittle, manually typed setup commands.
+Built entirely using `Python` and `FastAPI`, Overdrive bridges the gap between raw hardware capabilities and local multi-agent or engineering workflows, bypassing brittle, manually typed setup commands.
 
 ## ✨ Features
 
 - **Automated Model Discovery:** Scans a Hugging Face cache root for model snapshots, extracts config metadata, and applies profile overrides automatically.
 - **Concurrent Runtimes:** Spin up, isolate, and maintain multiple vLLM instances in parallel with built-in port collision protection.
 - **Preflight Admission Control:** Estimate launch memory usage, account for active managed reservations, and reject launches that exceed a configured GPU budget.
-- **Live Operations Dashboard:** Monitor managed containers, tail logs, and inspect live Docker stats from the CLI or the Textual TUI.
+- **Live Operations Dashboard:** Monitor managed containers, tail logs, inspect live Docker stats, and control launches from the browser-based web console or the CLI.
 - **Hugging Face CLI Integration:** Search Hub models and download them through the real `hf` CLI without leaving Overdrive.
 - **NVIDIA NGC Stack Integration:** Manage `nvcr.io/nvidia/vllm:26.04-py3` container configurations through the official Docker SDK.
 
@@ -48,6 +48,38 @@ Verify the install:
 which overdrive
 overdrive --help
 ```
+
+### Run The Web Console
+
+Once installed, start the web UI locally:
+
+```bash
+overdrive --hub-root /raid/huggingface web --host 0.0.0.0 --port 8080
+```
+
+Then open `http://localhost:8080` in your browser.
+
+### Run As A Docker Container
+
+Build the container image:
+
+```bash
+docker build -t overdrive:web .
+```
+
+Run it against the host Docker daemon and your model root:
+
+```bash
+docker run --rm -p 8080:8080 \
+	-v /var/run/docker.sock:/var/run/docker.sock \
+	-v /raid/huggingface:/raid/huggingface:ro \
+	-e OVERDRIVE_HUB_ROOT=/raid/huggingface \
+	overdrive:web
+```
+
+Important: mount the model directory into the Overdrive container at the same absolute
+path it has on the host. Overdrive passes discovered model paths through to Docker when
+it launches vLLM containers, so path parity matters.
 
 #### Update an existing install
 
@@ -142,7 +174,7 @@ overdrive models-search qwen --limit 5
 overdrive models-search llama --author meta-llama --json-output
 overdrive models-download Qwen/Qwen3-8B --dry-run
 overdrive models-download Qwen/Qwen3-8B --local-dir .\models\qwen3-8b
-overdrive tui
+overdrive web --host 0.0.0.0 --port 8080
 ```
 
 Use `hf auth login` first if you need access to gated or private repositories. Overdrive's

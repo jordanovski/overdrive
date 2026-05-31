@@ -11,7 +11,7 @@ import click
 from overdrive.hf_cli import HfCliError, download_model, search_models
 from overdrive.models import ContainerStats, ModelProfile
 from overdrive.state import EngineStateManager
-from overdrive.tui import OverdriveApp
+from overdrive.web import run_web
 
 
 def build_manager(hub_root: str | None, profiles: str | None) -> EngineStateManager:
@@ -59,12 +59,14 @@ def _raise_click_error(exc: HfCliError) -> None:
     "--hub-root",
     type=click.Path(path_type=str),
     default=None,
+    envvar="OVERDRIVE_HUB_ROOT",
     help="Hugging Face hub root.",
 )
 @click.option(
     "--profiles",
     type=click.Path(path_type=str),
     default=None,
+    envvar="OVERDRIVE_PROFILES",
     help="Override profiles YAML path.",
 )
 @click.pass_context
@@ -434,11 +436,12 @@ def stats(
         time.sleep(interval)
 
 
-@cli.command("tui")
+@cli.command("web")
+@click.option("--host", type=str, default="127.0.0.1", show_default=True)
+@click.option("--port", type=int, default=8080, show_default=True)
 @click.pass_obj
-def tui(manager: EngineStateManager) -> None:
-    app = OverdriveApp(manager)
-    app.run()
+def web(manager: EngineStateManager, host: str, port: int) -> None:
+    run_web(manager, host=host, port=port)
 
 
 def main() -> int:
