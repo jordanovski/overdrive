@@ -62,6 +62,13 @@ function searchPayload() {
   return payload;
 }
 
+function formatCount(n) {
+  if (n == null) return 'n/a';
+  if (n >= 1_000_000) return `${(n / 1_000_000).toFixed(1).replace(/\.0$/, '')}M`;
+  if (n >= 1_000) return `${(n / 1_000).toFixed(1).replace(/\.0$/, '')}K`;
+  return String(n);
+}
+
 function renderTags(tags) {
   if (!tags || !tags.length) {
     return '<span class="meta-line">No tags</span>';
@@ -85,12 +92,16 @@ function renderResults() {
       </div>
       <div class="hub-result-meta-grid">
         <div class="hub-result-meta-card">
+          <span class="hub-result-meta-label">Size</span>
+          <strong>${item.size_gb != null ? item.size_gb + ' GB' : 'n/a'}</strong>
+        </div>
+        <div class="hub-result-meta-card">
           <span class="hub-result-meta-label">Downloads</span>
-          <strong>${item.downloads ?? 'n/a'}</strong>
+          <strong>${formatCount(item.downloads)}</strong>
         </div>
         <div class="hub-result-meta-card">
           <span class="hub-result-meta-label">Likes</span>
-          <strong>${item.likes ?? 'n/a'}</strong>
+          <strong>${formatCount(item.likes)}</strong>
         </div>
         <div class="hub-result-meta-card">
           <span class="hub-result-meta-label">Task</span>

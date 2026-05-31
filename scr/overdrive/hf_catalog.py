@@ -78,6 +78,31 @@ def _list_models_compat(api: HfApi, **kwargs: Any):
         raise
 
 
+_DTYPE_BYTES: dict[str, float] = {
+    "f64": 8, "float64": 8,
+    "f32": 4, "float32": 4,
+    "bf16": 2, "bfloat16": 2,
+    "f16": 2, "float16": 2,
+    "f8_e4m3fn": 1, "f8_e5m2": 1, "fp8": 1,
+    "i8": 1, "int8": 1,
+    "i4": 0.5, "int4": 0.5, "nf4": 0.5, "nvfp4": 0.5,
+}
+
+
+def _estimate_size_gb(safetensors: object) -> float | None:
+    if safetensors is None:
+        return None
+    params: object = getattr(safetensors, "parameters", None)
+    if not isinstance(params, dict) or not params:
+        return None
+    total_bytes = sum(
+        count * _DTYPE_BYTES.get(dtype.lower(), 2)
+        for dtype, count in params.items()
+        if isinstance(count, (int, float))
+    )
+    return round(total_bytes / (1024 ** 3), 1)
+
+
 def search_hub_models(options: HubSearchOptions) -> list[dict[str, object]]:
     limit = _as_positive_limit(options.limit)
     query = options.query.strip()
@@ -138,6 +163,7 @@ def search_hub_models(options: HubSearchOptions) -> list[dict[str, object]]:
                 "tags": sorted(tags),
                 "dgx_tags": dgx_tags,
                 "quantization_match": bool(quant_tokens),
+                "size_gb": _estimate_size_gb(getattr(model, "safetensors", None)),
             }
         )
 
