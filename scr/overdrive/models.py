@@ -153,6 +153,7 @@ class BenchmarkModelRun(BaseModel):
     launch_command: str | None = None
     evaluation_command: str | None = None
     evaluation_log_path: Path | None = None
+    evaluation_log_excerpt: str | None = None
     host_port: int | None = None
     container_name: str | None = None
     predictions_path: Path | None = None

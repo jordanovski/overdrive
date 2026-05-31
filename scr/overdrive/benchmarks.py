@@ -132,8 +132,8 @@ class BenchmarkService:
         self.gpus = gpus if gpus is not None else detect_gpus()
         self._dataset_loader = dataset_loader or self._default_dataset_loader
         self._background_runner = background_runner or self._start_background
-        self._jobs: dict[str, BenchmarkJob] = {}
         self._lock = threading.Lock()
+        self._jobs: dict[str, BenchmarkJob] = self._load_jobs()
 
     @staticmethod
     def _default_dataset_loader(dataset_name: str, split: str) -> object:
@@ -143,13 +143,31 @@ class BenchmarkService:
 
     def list_jobs(self) -> list[BenchmarkJob]:
         with self._lock:
-            return [job.model_copy(deep=True) for job in self._jobs.values()]
+            jobs = [self._hydrate_job_view(job.model_copy(deep=True)) for job in self._jobs.values()]
+        return sorted(jobs, key=lambda job: job.created_at, reverse=True)
 
     def get_job(self, job_id: str) -> BenchmarkJob:
         with self._lock:
             if job_id not in self._jobs:
                 raise KeyError(job_id)
-            return self._jobs[job_id].model_copy(deep=True)
+            job = self._jobs[job_id].model_copy(deep=True)
+        return self._hydrate_job_view(job)
+
+    def get_model_run_log(self, job_id: str, model_id: str) -> dict[str, object]:
+        job = self.get_job(job_id)
+        model_run = next((item for item in job.model_runs if item.model_id == model_id), None)
+        if model_run is None:
+            raise KeyError(model_id)
+        log_path = model_run.evaluation_log_path
+        full_log = self._read_full_log(log_path)
+        return {
+            "job_id": job_id,
+            "model_id": model_id,
+            "display_name": model_run.display_name,
+            "status": model_run.status,
+            "evaluation_log_path": str(log_path) if log_path else None,
+            "content": full_log,
+        }
 
     def create_job(self, config: BenchmarkConfig) -> BenchmarkJob:
         if not config.model_ids:
@@ -164,6 +182,7 @@ class BenchmarkService:
                 events=[f"Queued benchmark for {len(config.model_ids)} model(s)."],
             )
             self._jobs[job.job_id] = job
+            self._persist_job(job)
         self._background_runner(lambda: self._run_job(job.job_id))
         return self.get_job(job.job_id)
 
@@ -175,6 +194,56 @@ class BenchmarkService:
         root = benchmarks_root() / job_id
         root.mkdir(parents=True, exist_ok=True)
         return root
+
+    def _jobs_dir(self) -> Path:
+        path = benchmarks_root() / "jobs"
+        path.mkdir(parents=True, exist_ok=True)
+        return path
+
+    def _job_snapshot_path(self, job_id: str) -> Path:
+        return self._jobs_dir() / f"{job_id}.json"
+
+    def _load_jobs(self) -> dict[str, BenchmarkJob]:
+        jobs: dict[str, BenchmarkJob] = {}
+        jobs_dir = self._jobs_dir()
+        for path in sorted(jobs_dir.glob("*.json")):
+            try:
+                payload = json.loads(path.read_text(encoding="utf-8"))
+                job = BenchmarkJob.model_validate(payload)
+            except (OSError, json.JSONDecodeError, ValueError):
+                continue
+            jobs[job.job_id] = job
+        return jobs
+
+    def _persist_job(self, job: BenchmarkJob) -> None:
+        path = self._job_snapshot_path(job.job_id)
+        path.write_text(json.dumps(job.model_dump(mode="json"), indent=2), encoding="utf-8")
+
+    def _hydrate_job_view(self, job: BenchmarkJob) -> BenchmarkJob:
+        for model_run in job.model_runs:
+            model_run.evaluation_log_excerpt = self._read_log_excerpt(model_run.evaluation_log_path)
+        return job
+
+    @staticmethod
+    def _read_log_excerpt(path: Path | None, *, max_lines: int = 40) -> str | None:
+        if path is None or not path.exists():
+            return None
+        try:
+            lines = path.read_text(encoding="utf-8", errors="replace").splitlines()
+        except OSError:
+            return None
+        if not lines:
+            return None
+        return "\n".join(lines[-max_lines:])
+
+    @staticmethod
+    def _read_full_log(path: Path | None) -> str | None:
+        if path is None or not path.exists():
+            return None
+        try:
+            return path.read_text(encoding="utf-8", errors="replace")
+        except OSError:
+            return None
 
     def _cache_index_path(self) -> Path:
         cache_root = benchmarks_root() / "cache"
@@ -293,6 +362,7 @@ class BenchmarkService:
             job = self._jobs[job_id]
             mutation(job)
             job.updated_at = _now()
+            self._persist_job(job)
 
     def _append_event(self, job: BenchmarkJob, message: str) -> None:
         job.events.insert(0, message)

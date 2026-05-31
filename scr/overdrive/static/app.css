@@ -359,6 +359,110 @@ button:hover,
   gap: 8px;
 }
 
+.progress-shell {
+  height: 14px;
+  margin-top: 16px;
+  border-radius: 999px;
+  background: rgba(255, 255, 255, 0.08);
+  overflow: hidden;
+}
+
+.progress-bar {
+  height: 100%;
+  width: 0%;
+  border-radius: inherit;
+  background: linear-gradient(90deg, var(--accent) 0%, var(--accent-strong) 100%);
+  transition: width 220ms ease;
+}
+
+.progress-copy {
+  margin-top: 10px;
+}
+
+.selection-summary {
+  margin-top: 14px;
+}
+
+.benchmark-overview-card {
+  min-height: 100%;
+}
+
+.benchmark-history-card {
+  width: 100%;
+}
+
+.benchmark-model-card {
+  gap: 12px;
+}
+
+.benchmark-model-header {
+  display: flex;
+  justify-content: space-between;
+  gap: 12px;
+  align-items: flex-start;
+}
+
+.benchmark-metrics-grid {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: 10px;
+}
+
+.benchmark-metric {
+  display: grid;
+  gap: 4px;
+  padding: 10px 12px;
+  border-radius: 14px;
+  border: 1px solid rgba(155, 178, 173, 0.14);
+  background: rgba(255, 255, 255, 0.03);
+}
+
+.benchmark-metric strong {
+  margin: 0;
+  font-size: 0.92rem;
+  line-height: 1.2;
+  word-break: break-word;
+}
+
+.status-pill {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  padding: 6px 10px;
+  border-radius: 999px;
+  font-size: 0.78rem;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  border: 1px solid rgba(155, 178, 173, 0.2);
+  color: var(--text);
+  background: rgba(255, 255, 255, 0.06);
+}
+
+.status-pill.success {
+  border-color: rgba(93, 176, 135, 0.34);
+  background: rgba(93, 176, 135, 0.16);
+}
+
+.status-pill.warning {
+  border-color: rgba(216, 139, 77, 0.34);
+  background: rgba(216, 139, 77, 0.16);
+}
+
+.status-pill.danger {
+  border-color: rgba(191, 90, 79, 0.34);
+  background: rgba(191, 90, 79, 0.16);
+}
+
+.benchmark-error {
+  color: #f1b1a8;
+}
+
+.benchmark-inline-log {
+  min-height: 0;
+  margin-top: 0;
+  max-height: 220px;
+}
+
 .chart-label {
   display: flex;
   justify-content: space-between;
@@ -463,6 +567,10 @@ button:hover,
     grid-template-columns: 1fr;
   }
 
+  .benchmark-metrics-grid {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+
   .hub-result-meta-grid {
     grid-template-columns: repeat(2, minmax(0, 1fr));
   }
@@ -482,6 +590,14 @@ button:hover,
   .sidebar,
   .content-grid > .panel {
     padding: 18px;
+  }
+
+  .benchmark-model-header {
+    flex-direction: column;
+  }
+
+  .benchmark-metrics-grid {
+    grid-template-columns: 1fr;
   }
 
   .hub-result-header {

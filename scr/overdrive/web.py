@@ -432,6 +432,16 @@ def create_app(
             raise HTTPException(status_code=404, detail=f"Unknown benchmark job: {job_id}") from exc
         return job.model_dump(mode="json")
 
+    @app.get("/api/benchmarks/jobs/{job_id}/logs/{model_id:path}")
+    async def benchmark_job_log(job_id: str, model_id: str) -> dict[str, object]:
+        service: BenchmarkService = app.state.benchmark_service
+        try:
+            payload = service.get_model_run_log(job_id, model_id)
+        except KeyError as exc:
+            detail = f"Unknown benchmark job: {job_id}" if str(exc) == repr(job_id) else f"Unknown benchmark model run: {model_id}"
+            raise HTTPException(status_code=404, detail=detail) from exc
+        return payload
+
     @app.post("/api/benchmarks/jobs", status_code=202)
     async def start_benchmark_job(config: BenchmarkConfig) -> dict[str, object]:
         service: BenchmarkService = app.state.benchmark_service

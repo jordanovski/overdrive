@@ -301,3 +301,103 @@ def test_benchmark_service_reuses_cached_results(monkeypatch, tmp_path: Path) ->
     assert launches == [model.model_id]
     assert second_job.model_runs[0].status == "completed"
     assert "Reused cached SWE-bench result" in "\n".join(second_job.events)
+
+
+def test_benchmark_service_loads_persisted_jobs_with_log_excerpt(monkeypatch, tmp_path: Path) -> None:
+    monkeypatch.setattr("overdrive.benchmarks.benchmarks_root", lambda: tmp_path)
+
+    log_path = tmp_path / "job-1" / "org-model-a" / "evaluation.log"
+    log_path.parent.mkdir(parents=True, exist_ok=True)
+    log_path.write_text("line-1\nline-2\nline-3\n", encoding="utf-8")
+
+    persisted_job = {
+        "job_id": "job-1",
+        "status": "failed",
+        "config": {
+            "model_ids": ["org/model-a"],
+            "dataset_name": "princeton-nlp/SWE-bench_Lite",
+            "split": "test",
+            "instance_limit": 10,
+            "max_eval_workers": 2,
+            "timeout_seconds": 1800,
+            "temperature": 0.0,
+            "max_response_tokens": 1200,
+            "reuse_cached_results": True,
+        },
+        "model_runs": [
+            {
+                "model_id": "org/model-a",
+                "display_name": "model-a",
+                "status": "failed",
+                "evaluation_log_path": str(log_path),
+                "error": "evaluation failed",
+            }
+        ],
+        "events": ["Failed org/model-a: evaluation failed"],
+    }
+    jobs_dir = tmp_path / "jobs"
+    jobs_dir.mkdir(parents=True, exist_ok=True)
+    (jobs_dir / "job-1.json").write_text(__import__("json").dumps(persisted_job), encoding="utf-8")
+
+    service = BenchmarkService(
+        SimpleNamespace(),
+        gpus=[],
+        dataset_loader=lambda dataset_name, split: [],
+        background_runner=lambda func: func(),
+    )
+
+    jobs = service.list_jobs()
+
+    assert len(jobs) == 1
+    assert jobs[0].job_id == "job-1"
+    assert jobs[0].model_runs[0].evaluation_log_excerpt == "line-1\nline-2\nline-3"
+
+
+def test_benchmark_service_returns_full_model_run_log(monkeypatch, tmp_path: Path) -> None:
+    monkeypatch.setattr("overdrive.benchmarks.benchmarks_root", lambda: tmp_path)
+
+    log_path = tmp_path / "job-1" / "org-model-a" / "evaluation.log"
+    log_path.parent.mkdir(parents=True, exist_ok=True)
+    log_path.write_text("alpha\nbeta\ngamma\n", encoding="utf-8")
+
+    persisted_job = {
+        "job_id": "job-1",
+        "status": "failed",
+        "config": {
+            "model_ids": ["org/model-a"],
+            "dataset_name": "princeton-nlp/SWE-bench_Lite",
+            "split": "test",
+            "instance_limit": 10,
+            "max_eval_workers": 2,
+            "timeout_seconds": 1800,
+            "temperature": 0.0,
+            "max_response_tokens": 1200,
+            "reuse_cached_results": True,
+        },
+        "model_runs": [
+            {
+                "model_id": "org/model-a",
+                "display_name": "model-a",
+                "status": "failed",
+                "evaluation_log_path": str(log_path),
+                "error": "evaluation failed",
+            }
+        ],
+        "events": ["Failed org/model-a: evaluation failed"],
+    }
+    jobs_dir = tmp_path / "jobs"
+    jobs_dir.mkdir(parents=True, exist_ok=True)
+    (jobs_dir / "job-1.json").write_text(__import__("json").dumps(persisted_job), encoding="utf-8")
+
+    service = BenchmarkService(
+        SimpleNamespace(),
+        gpus=[],
+        dataset_loader=lambda dataset_name, split: [],
+        background_runner=lambda func: func(),
+    )
+
+    payload = service.get_model_run_log("job-1", "org/model-a")
+
+    assert payload["job_id"] == "job-1"
+    assert payload["model_id"] == "org/model-a"
+    assert payload["content"] == "alpha\nbeta\ngamma\n"

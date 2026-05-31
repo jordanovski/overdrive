@@ -40,16 +40,28 @@
         </div>
         <div id="benchmark-model-list" class="model-list"></div>
         <div class="section-heading diagnostics-heading">
-          <h2>Discovery Diagnostics</h2>
-          <span class="muted">Why models are included/excluded</span>
+          <h2>Discovery Notes</h2>
+          <span class="muted">Only useful when expected local models are missing</span>
         </div>
         <pre id="discovery-diagnostics" class="event-log">Waiting for diagnostics.</pre>
       </section>
 
       <section class="content-grid benchmark-grid">
+        <section class="panel summary-panel">
+          <div class="section-heading">
+            <h2>Benchmark Progress</h2>
+            <span id="benchmark-job-caption" class="muted">No active benchmark job.</span>
+          </div>
+          <div id="benchmark-overview" class="status-list empty-state">Start a run to see live progress, failures, and final results.</div>
+          <div class="progress-shell" aria-hidden="true">
+            <div id="benchmark-progress-bar" class="progress-bar"></div>
+          </div>
+          <div id="benchmark-progress-text" class="muted progress-copy">No benchmark in progress.</div>
+        </section>
+
         <section class="panel form-panel">
           <div class="section-heading">
-            <h2>Benchmark Run</h2>
+            <h2>Start New Run</h2>
             <span class="muted">Sequential launches with recommended settings</span>
           </div>
           <form id="benchmark-form" class="settings-form">
@@ -80,21 +92,37 @@
           <div class="action-row">
             <button id="start-benchmark" class="primary-button" type="button">Start Benchmark</button>
           </div>
-          <pre id="benchmark-events" class="event-log">Waiting for a benchmark run.</pre>
+          <div id="benchmark-selection-summary" class="muted selection-summary">Select one or more local models to create a run.</div>
         </section>
 
         <section class="panel runtime-panel">
           <div class="section-heading">
-            <h2>Run Status</h2>
-            <span id="benchmark-job-caption" class="muted">No active benchmark job.</span>
+            <h2>Run History</h2>
+            <span class="muted">Select any previous run to inspect it</span>
           </div>
-          <div id="benchmark-status" class="status-list empty-state">Create a run to see model-by-model progress.</div>
+          <div id="benchmark-history" class="status-list empty-state">No benchmark runs yet.</div>
+        </section>
+
+        <section class="panel runtime-panel">
+          <div class="section-heading">
+            <h2>Model Results</h2>
+            <span class="muted">Status, artifacts, and failure context for the selected run</span>
+          </div>
+          <div id="benchmark-status" class="status-list empty-state">Create or select a run to inspect model-by-model progress.</div>
+        </section>
+
+        <section class="panel logs-panel">
+          <div class="section-heading">
+            <h2>Run Logs</h2>
+            <span class="muted">Recent events plus failure output and evaluation log tails</span>
+          </div>
+          <pre id="benchmark-events" class="event-log">Waiting for a benchmark run.</pre>
         </section>
 
         <section class="panel summary-panel">
           <div class="section-heading">
             <h2>Results Graph</h2>
-            <span class="muted">Resolution rate by model</span>
+            <span class="muted">Completed and failed model outcomes for the selected run</span>
           </div>
           <div id="benchmark-chart" class="chart empty-state">No results yet.</div>
         </section>

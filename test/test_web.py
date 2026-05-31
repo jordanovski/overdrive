@@ -319,6 +319,14 @@ def test_benchmark_routes_expose_jobs(monkeypatch) -> None:
     benchmark_service = SimpleNamespace(
         list_jobs=lambda: [job],
         get_job=lambda job_id: job,
+        get_model_run_log=lambda job_id, model_id: {
+            "job_id": job_id,
+            "model_id": model_id,
+            "display_name": model.display_name,
+            "status": "completed",
+            "evaluation_log_path": "/tmp/evaluation.log",
+            "content": "full log",
+        },
         create_job=create_job,
     )
 
@@ -328,6 +336,7 @@ def test_benchmark_routes_expose_jobs(monkeypatch) -> None:
 
     page_response = client.get("/benchmarks")
     jobs_response = client.get("/api/benchmarks/jobs")
+    log_response = client.get(f"/api/benchmarks/jobs/{job.job_id}/logs/{model.model_id}")
     create_response = client.post(
         "/api/benchmarks/jobs",
         json={
@@ -344,6 +353,8 @@ def test_benchmark_routes_expose_jobs(monkeypatch) -> None:
     assert web_module.__version__ in page_response.text
     assert jobs_response.status_code == 200
     assert jobs_response.json()[0]["job_id"] == "job-1"
+    assert log_response.status_code == 200
+    assert log_response.json()["content"] == "full log"
     assert create_response.status_code == 202
     assert captured["config"].model_ids == [model.model_id]
 
