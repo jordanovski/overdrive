@@ -10,11 +10,13 @@ from fastapi import FastAPI, HTTPException, Request
 from fastapi.responses import HTMLResponse
 from fastapi.staticfiles import StaticFiles
 from fastapi.templating import Jinja2Templates
-from pydantic import BaseModel, ConfigDict
+from pydantic import BaseModel, ConfigDict, Field
 
 from overdrive import __version__
 from overdrive.benchmarks import BenchmarkService
 from overdrive.docker_runtime import INTERNAL_VLLM_PORT, VLLM_IMAGE
+from overdrive.hf_catalog import HubSearchOptions, search_hub_models
+from overdrive.hf_cli import HfCliError, download_model
 from overdrive.hardware import (
     GPUDevice,
     detect_gpus,
@@ -44,6 +46,33 @@ class LaunchSettings(BaseModel):
     tensor_parallel_size: int | None = None
     kv_cache_dtype: str | None = None
     gpu_memory_budget_gb: float | None = None
+
+
+class HubSearchRequest(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+
+    query: str = ""
+    quantization: str | None = None
+    author: str | None = None
+    pipeline_tag: str | None = None
+    library: str | None = None
+    min_downloads: int | None = None
+    sort: str = "downloads"
+    limit: int = 25
+    dgx_ready_only: bool = False
+    token: str | None = None
+
+
+class HubDownloadRequest(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+
+    model_id: str
+    revision: str | None = None
+    include: list[str] = Field(default_factory=list)
+    exclude: list[str] = Field(default_factory=list)
+    token: str | None = None
+    max_workers: int | None = None
+    force_download: bool = False
 
 
 def _display_dtype(model: ModelMetadata) -> str:
@@ -216,6 +245,14 @@ def create_app(
             {"hub_root": str(manager.hub_root)},
         )
 
+    @app.get("/models-search", response_class=HTMLResponse)
+    async def model_search_page(request: Request) -> HTMLResponse:
+        return TEMPLATES.TemplateResponse(
+            request,
+            "models_search.html",
+            {"hub_root": str(manager.hub_root)},
+        )
+
     @app.get("/api/healthz")
     async def healthz() -> dict[str, str]:
         return {"status": "ok"}
@@ -224,6 +261,61 @@ def create_app(
     async def models() -> list[dict[str, object]]:
         gpus: list[GPUDevice] = app.state.gpus
         return [_serialize_model(manager, model, gpus) for model in manager.discover_models()]
+
+    @app.post("/api/hub/search")
+    async def hub_search(search: HubSearchRequest) -> dict[str, object]:
+        try:
+            models = search_hub_models(
+                HubSearchOptions(
+                    query=search.query,
+                    quantization=search.quantization,
+                    author=search.author,
+                    pipeline_tag=search.pipeline_tag,
+                    library=search.library,
+                    min_downloads=search.min_downloads,
+                    sort=search.sort,
+                    limit=search.limit,
+                    dgx_ready_only=search.dgx_ready_only,
+                    token=search.token,
+                )
+            )
+        except ValueError as exc:
+            raise HTTPException(status_code=400, detail=str(exc)) from exc
+        except RuntimeError as exc:
+            raise HTTPException(status_code=502, detail=str(exc)) from exc
+        return {
+            "count": len(models),
+            "hub_root": str(manager.hub_root),
+            "models": models,
+        }
+
+    @app.post("/api/hub/download")
+    async def hub_download(payload: HubDownloadRequest) -> dict[str, object]:
+        model_id = payload.model_id.strip()
+        if not model_id:
+            raise HTTPException(status_code=400, detail="model_id is required")
+        local_dir = manager.hub_root / model_id
+        try:
+            result = download_model(
+                model_id,
+                local_dir=local_dir,
+                revision=payload.revision,
+                includes=payload.include,
+                excludes=payload.exclude,
+                token=payload.token,
+                max_workers=payload.max_workers,
+                force_download=payload.force_download,
+            )
+        except HfCliError as exc:
+            raise HTTPException(status_code=400, detail=str(exc)) from exc
+        except RuntimeError as exc:
+            raise HTTPException(status_code=502, detail=str(exc)) from exc
+        return {
+            "model_id": model_id,
+            "hub_root": str(manager.hub_root),
+            "local_dir": str(local_dir),
+            **result,
+        }
 
     @app.get("/api/runtime")
     async def runtime() -> dict[str, list[dict[str, object]]]:

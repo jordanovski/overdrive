@@ -1,0 +1,97 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Overdrive Model Search</title>
+  <link rel="stylesheet" href="/static/app.css">
+</head>
+<body data-hub-root="{{ hub_root }}">
+  <div class="shell">
+    <header class="hero panel">
+      <div>
+        <p class="eyebrow">Overdrive Hub Scout</p>
+        <h1>Find DGX-ready models before you pull them.</h1>
+        <p class="hero-copy">Search the Hugging Face Hub by name, quantization, and runtime-relevant tags, then download selected repositories directly under your configured OVERDRIVE_HUB_ROOT.</p>
+        <nav class="nav-row">
+          <a href="/" class="ghost-button nav-link">Control Deck</a>
+          <a href="/models-search" class="primary-button nav-link is-active">Model Search</a>
+          <a href="/benchmarks" class="ghost-button nav-link">SWE-bench</a>
+        </nav>
+      </div>
+      <div class="hero-meta">
+        <span class="badge">Hub Root</span>
+        <strong id="hub-root"></strong>
+        <button id="search-models" class="primary-button" type="button">Search Hub</button>
+      </div>
+    </header>
+
+    <main class="layout">
+      <section class="panel sidebar">
+        <div class="section-heading">
+          <h2>Search Filters</h2>
+          <span class="muted">Name, quantization, and DGX hints</span>
+        </div>
+        <form id="hub-search-form" class="settings-form single-column-form">
+          <label>
+            <span>Model Name / Query</span>
+            <input name="query" type="text" placeholder="Qwen3, Llama, DeepSeek...">
+          </label>
+          <label>
+            <span>Quantization Tags</span>
+            <input name="quantization" type="text" placeholder="nvfp4, fp8, awq, gguf">
+          </label>
+          <label>
+            <span>Author (Optional)</span>
+            <input name="author" type="text" placeholder="Qwen, meta-llama">
+          </label>
+          <label>
+            <span>Pipeline Task (Optional)</span>
+            <input name="pipeline_tag" type="text" placeholder="text-generation">
+          </label>
+          <label>
+            <span>Library / Runtime (Optional)</span>
+            <input name="library" type="text" placeholder="transformers, vllm, tensorrt-llm">
+          </label>
+          <label>
+            <span>Min Downloads</span>
+            <input name="min_downloads" type="number" min="0" value="1000">
+          </label>
+          <label>
+            <span>Max Results</span>
+            <input name="limit" type="number" min="1" max="100" value="25">
+          </label>
+          <label class="checkbox-card">
+            <input name="dgx_ready_only" type="checkbox" checked>
+            <span>
+              <strong>DGX-ready signal only</strong>
+              <span class="meta-line">Prefer models tagged for vLLM/TensorRT-LLM, Blackwell/Hopper, and FP8/NVFP4-like paths.</span>
+            </span>
+          </label>
+        </form>
+        <pre id="search-events" class="event-log">Enter filters and search the Hub.</pre>
+      </section>
+
+      <section class="content-grid">
+        <section class="panel summary-panel">
+          <div class="section-heading">
+            <h2>Hub Results</h2>
+            <span id="result-count" class="muted">0 found</span>
+          </div>
+          <div id="hub-results" class="model-list empty-state">No results yet.</div>
+        </section>
+
+        <section class="panel logs-panel">
+          <div class="section-heading">
+            <h2>Download Status</h2>
+            <span class="muted">Destination lives under OVERDRIVE_HUB_ROOT</span>
+          </div>
+          <pre id="download-log" class="event-log">No downloads started yet.</pre>
+        </section>
+      </section>
+    </main>
+  </div>
+
+  <script src="/static/models_search.js"></script>
+</body>
+</html>

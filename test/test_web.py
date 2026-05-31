@@ -323,3 +323,114 @@ def test_benchmark_routes_expose_jobs(monkeypatch) -> None:
     assert jobs_response.json()[0]["job_id"] == "job-1"
     assert create_response.status_code == 202
     assert captured["config"].model_ids == [model.model_id]
+
+
+def test_model_search_page_renders(monkeypatch) -> None:
+    model = _model(size=35.0)
+    manager, _ = _manager(model)
+
+    monkeypatch.setattr(web_module, "detect_gpus", lambda: [])
+
+    client = TestClient(web_module.create_app(manager))
+    response = client.get("/models-search")
+
+    assert response.status_code == 200
+    assert "Model Search" in response.text
+
+
+def test_hub_search_route_returns_results(monkeypatch) -> None:
+    model = _model(size=35.0)
+    manager, _ = _manager(model)
+
+    monkeypatch.setattr(web_module, "detect_gpus", lambda: [])
+
+    captured: dict[str, object] = {}
+
+    def fake_search(options):
+        captured["options"] = options
+        return [
+            {
+                "id": "Qwen/Qwen3-8B",
+                "downloads": 123,
+                "likes": 45,
+                "pipeline_tag": "text-generation",
+                "library_name": "transformers",
+                "tags": ["vllm", "nvfp4"],
+                "dgx_tags": ["vllm", "nvfp4"],
+            }
+        ]
+
+    monkeypatch.setattr(web_module, "search_hub_models", fake_search)
+
+    client = TestClient(web_module.create_app(manager))
+    response = client.post(
+        "/api/hub/search",
+        json={
+            "query": "qwen",
+            "quantization": "nvfp4",
+            "limit": 20,
+            "dgx_ready_only": True,
+        },
+    )
+
+    assert response.status_code == 200
+    payload = response.json()
+    assert payload["count"] == 1
+    assert payload["hub_root"] == str(manager.hub_root)
+    assert payload["models"][0]["id"] == "Qwen/Qwen3-8B"
+    assert captured["options"].query == "qwen"
+    assert captured["options"].quantization == "nvfp4"
+    assert captured["options"].dgx_ready_only is True
+
+
+def test_hub_download_route_targets_hub_root(monkeypatch) -> None:
+    model = _model(size=35.0)
+    manager, _ = _manager(model)
+
+    monkeypatch.setattr(web_module, "detect_gpus", lambda: [])
+
+    captured: dict[str, object] = {}
+
+    def fake_download(
+        model_id,
+        *,
+        local_dir,
+        cache_dir=None,
+        revision=None,
+        includes=None,
+        excludes=None,
+        token=None,
+        max_workers=None,
+        force_download=False,
+        dry_run=False,
+    ):
+        captured["model_id"] = model_id
+        captured["local_dir"] = local_dir
+        captured["includes"] = includes
+        captured["excludes"] = excludes
+        return {
+            "model_id": model_id,
+            "download_path": str(local_dir),
+            "stdout": "ok",
+        }
+
+    monkeypatch.setattr(web_module, "download_model", fake_download)
+
+    client = TestClient(web_module.create_app(manager))
+    response = client.post(
+        "/api/hub/download",
+        json={
+            "model_id": "Qwen/Qwen3-8B",
+            "include": ["*.safetensors"],
+            "exclude": ["*.bin"],
+        },
+    )
+
+    assert response.status_code == 200
+    payload = response.json()
+    expected_dir = manager.hub_root / "Qwen" / "Qwen3-8B"
+    assert payload["local_dir"] == str(expected_dir)
+    assert captured["model_id"] == "Qwen/Qwen3-8B"
+    assert str(captured["local_dir"]) == str(expected_dir)
+    assert captured["includes"] == ["*.safetensors"]
+    assert captured["excludes"] == ["*.bin"]
