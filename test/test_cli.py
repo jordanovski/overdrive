@@ -41,6 +41,22 @@ def test_scan_command_json_output(tmp_path: Path) -> None:
     assert payload[0]["model_id"] == "org/gemma-4-27b"
 
 
+def test_scan_command_accepts_debug_log_level(tmp_path: Path) -> None:
+    hub_root = tmp_path / "hub"
+    snapshot = hub_root / "models--org--gemma-4-27b" / "snapshots" / "rev1"
+    snapshot.mkdir(parents=True)
+    (snapshot / "config.json").write_text(
+        json.dumps({"architectures": ["GemmaForCausalLM"], "torch_dtype": "bfloat16"}),
+        encoding="utf-8",
+    )
+
+    runner = CliRunner()
+    result = runner.invoke(cli, ["--log-level", "debug", "--hub-root", str(hub_root), "scan"])
+
+    assert result.exit_code == 0
+    assert "org/gemma-4-27b" in result.output
+
+
 def test_plan_command_reports_memory_budget_failure(tmp_path: Path) -> None:
     hub_root = tmp_path / "hub"
     snapshot = hub_root / "models--org--gemma-4-27b" / "snapshots" / "rev1"

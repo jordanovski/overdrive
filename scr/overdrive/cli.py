@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import json
+import logging
 import time
 from pathlib import Path
 
@@ -12,6 +13,8 @@ from overdrive.hf_cli import HfCliError, download_model, search_models
 from overdrive.models import ContainerStats, ModelProfile
 from overdrive.state import EngineStateManager
 from overdrive.web import run_web
+
+LOG_LEVELS = ["DEBUG", "INFO", "WARNING", "ERROR", "CRITICAL"]
 
 
 def build_manager(hub_root: str | None, profiles: str | None) -> EngineStateManager:
@@ -54,6 +57,19 @@ def _raise_click_error(exc: HfCliError) -> None:
     raise click.ClickException(str(exc)) from exc
 
 
+def _configure_logging(log_level: str) -> None:
+    resolved_level = getattr(logging, log_level.upper(), logging.INFO)
+    root_logger = logging.getLogger()
+    if root_logger.handlers:
+        root_logger.setLevel(resolved_level)
+    else:
+        logging.basicConfig(
+            level=resolved_level,
+            format="%(asctime)s %(levelname)s %(name)s %(message)s",
+        )
+    logging.getLogger("overdrive").setLevel(resolved_level)
+
+
 @click.group()
 @click.option(
     "--hub-root",
@@ -69,8 +85,22 @@ def _raise_click_error(exc: HfCliError) -> None:
     envvar="OVERDRIVE_PROFILES",
     help="Override profiles YAML path.",
 )
+@click.option(
+    "--log-level",
+    type=click.Choice(LOG_LEVELS, case_sensitive=False),
+    default="INFO",
+    envvar="OVERDRIVE_LOG_LEVEL",
+    show_default=True,
+    help="Application log level.",
+)
 @click.pass_context
-def cli(ctx: click.Context, hub_root: str | None, profiles: str | None) -> None:
+def cli(
+    ctx: click.Context,
+    hub_root: str | None,
+    profiles: str | None,
+    log_level: str,
+) -> None:
+    _configure_logging(log_level)
     ctx.obj = build_manager(hub_root, profiles)
 
 
