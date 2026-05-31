@@ -12,6 +12,7 @@ import sys
 import threading
 import time
 import uuid
+import hashlib
 from datetime import datetime, timezone
 from pathlib import Path
 from typing import Callable, Iterable
@@ -175,6 +176,118 @@ class BenchmarkService:
         root.mkdir(parents=True, exist_ok=True)
         return root
 
+    def _cache_index_path(self) -> Path:
+        cache_root = benchmarks_root() / "cache"
+        cache_root.mkdir(parents=True, exist_ok=True)
+        return cache_root / "index.json"
+
+    def _load_cache_index(self) -> dict[str, dict[str, object]]:
+        path = self._cache_index_path()
+        if not path.exists():
+            return {}
+        try:
+            payload = json.loads(path.read_text(encoding="utf-8"))
+        except (OSError, json.JSONDecodeError):
+            return {}
+        if not isinstance(payload, dict):
+            return {}
+        normalized: dict[str, dict[str, object]] = {}
+        for key, value in payload.items():
+            if isinstance(key, str) and isinstance(value, dict):
+                normalized[key] = value
+        return normalized
+
+    def _write_cache_index(self, cache_index: dict[str, dict[str, object]]) -> None:
+        path = self._cache_index_path()
+        path.write_text(json.dumps(cache_index, indent=2, sort_keys=True), encoding="utf-8")
+
+    def _benchmark_cache_key(
+        self,
+        *,
+        model_id: str,
+        config: BenchmarkConfig,
+        settings: dict[str, int | float | str | None],
+        instance_ids: list[str],
+    ) -> str:
+        payload = {
+            "model_id": model_id,
+            "dataset_name": config.dataset_name,
+            "split": config.split,
+            "instance_limit": config.instance_limit,
+            "timeout_seconds": config.timeout_seconds,
+            "temperature": config.temperature,
+            "max_response_tokens": config.max_response_tokens,
+            "max_eval_workers": config.max_eval_workers,
+            "settings": settings,
+            "instance_ids": instance_ids,
+        }
+        digest = hashlib.sha256(json.dumps(payload, sort_keys=True).encode("utf-8")).hexdigest()
+        return digest
+
+    def _load_cached_result(
+        self,
+        *,
+        model_id: str,
+        config: BenchmarkConfig,
+        settings: dict[str, int | float | str | None],
+        instance_ids: list[str],
+    ) -> dict[str, object] | None:
+        cache_index = self._load_cache_index()
+        cache_key = self._benchmark_cache_key(
+            model_id=model_id,
+            config=config,
+            settings=settings,
+            instance_ids=instance_ids,
+        )
+        entry = cache_index.get(cache_key)
+        if not entry:
+            return None
+        report_path = Path(str(entry.get("report_path", "")))
+        predictions_path = Path(str(entry.get("predictions_path", "")))
+        if not report_path.exists() or not predictions_path.exists():
+            return None
+        return entry
+
+    def _save_cached_result(
+        self,
+        *,
+        model_id: str,
+        config: BenchmarkConfig,
+        settings: dict[str, int | float | str | None],
+        instance_ids: list[str],
+        report_path: Path,
+        predictions_path: Path,
+        evaluation_log_path: Path,
+        evaluation_command: str,
+        submitted_instances: int,
+        completed_instances: int,
+        resolved_instances: int,
+        resolution_rate: float | None,
+    ) -> None:
+        cache_index = self._load_cache_index()
+        cache_key = self._benchmark_cache_key(
+            model_id=model_id,
+            config=config,
+            settings=settings,
+            instance_ids=instance_ids,
+        )
+        cache_index[cache_key] = {
+            "model_id": model_id,
+            "dataset_name": config.dataset_name,
+            "split": config.split,
+            "instance_limit": config.instance_limit,
+            "saved_at": _now().isoformat(),
+            "report_path": str(report_path),
+            "predictions_path": str(predictions_path),
+            "evaluation_log_path": str(evaluation_log_path),
+            "evaluation_command": evaluation_command,
+            "submitted_instances": submitted_instances,
+            "completed_instances": completed_instances,
+            "resolved_instances": resolved_instances,
+            "resolution_rate": resolution_rate,
+        }
+        self._write_cache_index(cache_index)
+
     def _mutate_job(self, job_id: str, mutation: Callable[[BenchmarkJob], None]) -> None:
         with self._lock:
             job = self._jobs[job_id]
@@ -231,6 +344,48 @@ class BenchmarkService:
         launch_result = None
         model = self.manager.get_model(model_id)
         settings = _recommended_settings(self.manager, model, self.gpus)
+        instance_ids = [str(item["instance_id"]) for item in instances]
+        if config.reuse_cached_results:
+            cached = self._load_cached_result(
+                model_id=model_id,
+                config=config,
+                settings=settings,
+                instance_ids=instance_ids,
+            )
+            if cached:
+                submitted_instances = int(cached.get("submitted_instances", len(instances)))
+                completed_instances = int(cached.get("completed_instances", submitted_instances))
+                resolved_instances = int(cached.get("resolved_instances", 0))
+                resolution_rate = (
+                    float(cached["resolution_rate"])
+                    if cached.get("resolution_rate") is not None
+                    else None
+                )
+                self._mutate_job(
+                    job_id,
+                    lambda job: self._mark_model(
+                        job,
+                        model_id,
+                        status="completed",
+                        display_name=model.display_name,
+                        selected_settings=settings,
+                        report_path=Path(str(cached["report_path"])),
+                        predictions_path=Path(str(cached["predictions_path"])),
+                        evaluation_log_path=Path(str(cached["evaluation_log_path"])),
+                        evaluation_command=str(cached.get("evaluation_command") or ""),
+                        submitted_instances=submitted_instances,
+                        completed_instances=completed_instances,
+                        resolved_instances=resolved_instances,
+                        resolution_rate=resolution_rate,
+                        started=True,
+                        finished=True,
+                        event=(
+                            f"Reused cached SWE-bench result for {model_id}: "
+                            f"{resolved_instances}/{submitted_instances} resolved."
+                        ),
+                    ),
+                )
+                return
         self._mutate_job(
             job_id,
             lambda job: self._mark_model(
@@ -304,7 +459,7 @@ class BenchmarkService:
                 model_id=model_id,
                 config=config,
                 predictions_path=predictions_path,
-                instance_ids=[str(item["instance_id"]) for item in instances],
+                instance_ids=instance_ids,
                 output_dir=model_root,
             )
             completed_instances = int(report.get("completed_instances", 0))
@@ -313,6 +468,20 @@ class BenchmarkService:
             resolution_rate = None
             if submitted_instances > 0:
                 resolution_rate = round((resolved_instances / submitted_instances) * 100, 2)
+            self._save_cached_result(
+                model_id=model_id,
+                config=config,
+                settings=settings,
+                instance_ids=instance_ids,
+                report_path=report_path,
+                predictions_path=predictions_path,
+                evaluation_log_path=evaluation_log_path,
+                evaluation_command=shlex.join(evaluation_command),
+                submitted_instances=submitted_instances,
+                completed_instances=completed_instances,
+                resolved_instances=resolved_instances,
+                resolution_rate=resolution_rate,
+            )
             self._mutate_job(
                 job_id,
                 lambda job: self._mark_model(

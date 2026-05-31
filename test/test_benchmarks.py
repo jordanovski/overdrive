@@ -226,3 +226,78 @@ def test_generate_patch_uses_runtime_host_for_containerized_overdrive(monkeypatc
 
     assert output == "diff --git a/x b/x"
     assert captured["url"] == "http://host.docker.internal:8000/v1/chat/completions"
+
+
+def test_benchmark_service_reuses_cached_results(monkeypatch, tmp_path: Path) -> None:
+    model = _model("org/model-a")
+    launches: list[str] = []
+
+    manager = SimpleNamespace(
+        get_model=lambda model_id: model,
+        launch_model=lambda model_id, **kwargs: launches.append(model_id)
+        or SimpleNamespace(
+            container_name=f"overdrive-{model_id.replace('/', '-')}",
+            host_port=8001,
+            command=["--model", "/models/current", "--port", "8000"],
+        ),
+        runtime=SimpleNamespace(stop_model=lambda container_name=None, model_id=None: True),
+    )
+    service = BenchmarkService(
+        manager,
+        gpus=[],
+        dataset_loader=lambda dataset_name, split: [
+            {
+                "instance_id": "sympy__sympy-1",
+                "repo": "sympy/sympy",
+                "problem_statement": "Fix parsing.",
+            }
+        ],
+        background_runner=lambda func: func(),
+    )
+
+    monkeypatch.setattr("overdrive.benchmarks.benchmarks_root", lambda: tmp_path)
+    monkeypatch.setattr(
+        "overdrive.benchmarks._recommended_settings",
+        lambda manager, model, gpus: {
+            "preferred_port": 8000,
+            "max_model_len": 4096,
+            "tensor_parallel_size": 1,
+            "kv_cache_dtype": "auto",
+            "gpu_memory_budget_gb": 110.0,
+        },
+    )
+    monkeypatch.setattr(service, "_wait_for_vllm", lambda host_port: "served-model")
+    monkeypatch.setattr(
+        service,
+        "_write_predictions",
+        lambda **kwargs: tmp_path / "predictions.jsonl",
+    )
+    monkeypatch.setattr(
+        service,
+        "_run_evaluation",
+        lambda **kwargs: (
+            tmp_path / "report.json",
+            {
+                "submitted_instances": 1,
+                "completed_instances": 1,
+                "resolved_instances": 1,
+            },
+            ["python", "-m", "swebench.harness.run_evaluation"],
+            tmp_path / "evaluation.log",
+        ),
+    )
+    (tmp_path / "predictions.jsonl").write_text("{}\n", encoding="utf-8")
+    (tmp_path / "report.json").write_text("{}", encoding="utf-8")
+    (tmp_path / "evaluation.log").write_text("ok", encoding="utf-8")
+
+    first = service.create_job(BenchmarkConfig(model_ids=[model.model_id]))
+    second = service.create_job(BenchmarkConfig(model_ids=[model.model_id]))
+
+    first_job = service.get_job(first.job_id)
+    second_job = service.get_job(second.job_id)
+
+    assert first_job.status == "completed"
+    assert second_job.status == "completed"
+    assert launches == [model.model_id]
+    assert second_job.model_runs[0].status == "completed"
+    assert "Reused cached SWE-bench result" in "\n".join(second_job.events)

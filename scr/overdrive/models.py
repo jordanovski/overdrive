@@ -132,6 +132,7 @@ class BenchmarkConfig(BaseModel):
     timeout_seconds: int = 1800
     temperature: float = 0.0
     max_response_tokens: int = 1200
+    reuse_cached_results: bool = True
 
 
 class BenchmarkModelRun(BaseModel):

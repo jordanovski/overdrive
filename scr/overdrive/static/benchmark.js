@@ -73,6 +73,7 @@ function benchmarkFormPayload() {
     split: String(formData.get('split') || '').trim(),
     instance_limit: Number(formData.get('instance_limit') || 0) || null,
     max_eval_workers: Number(formData.get('max_eval_workers') || 0) || 1,
+    reuse_cached_results: Boolean(formData.get('reuse_cached_results')),
   };
 }
 

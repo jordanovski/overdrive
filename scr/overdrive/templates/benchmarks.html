@@ -67,6 +67,13 @@
               <span>Evaluation Workers</span>
               <input id="max-workers" name="max_eval_workers" type="number" min="1" value="2">
             </label>
+            <label class="checkbox-card">
+              <input id="reuse-cached-results" name="reuse_cached_results" type="checkbox" checked>
+              <span>
+                <strong>Reuse cached results</strong>
+                <span class="meta-line">Skip reruns when a model already has results for the same dataset and settings.</span>
+              </span>
+            </label>
           </form>
           <div class="action-row">
             <button id="start-benchmark" class="primary-button" type="button">Start Benchmark</button>
