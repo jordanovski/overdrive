@@ -187,3 +187,37 @@ def test_scan_model_cache_logs_directories_without_config(tmp_path: Path, caplog
     assert len(models) == 1
     assert "Top-level directories with no config.json" in caplog.text
     assert "NVIDIA-Nemotron-3-Nano-Omni" in caplog.text
+
+
+def test_scan_model_cache_discovers_model_like_directory_without_config(
+    tmp_path: Path,
+) -> None:
+    hub_root = tmp_path / "models"
+    model_dir = hub_root / "qwen3.6-27b"
+    model_dir.mkdir(parents=True)
+    (model_dir / "tokenizer.json").write_text("{}", encoding="utf-8")
+    (model_dir / "model-00001-of-00002.safetensors").write_text("x", encoding="utf-8")
+
+    models = scan_model_cache(hub_root)
+
+    assert len(models) == 1
+    assert models[0].model_id == "qwen3.6-27b"
+    assert models[0].config_data == {}
+    assert models[0].architecture == "unknown"
+
+
+def test_scan_model_cache_does_not_warn_for_fallback_model_like_directory(
+    tmp_path: Path,
+    caplog,
+) -> None:
+    hub_root = tmp_path / "models"
+    model_dir = hub_root / "NVIDIA-Nemotron-3-Nano-Omni"
+    model_dir.mkdir(parents=True)
+    (model_dir / "model.safetensors").write_text("x", encoding="utf-8")
+
+    with caplog.at_level(logging.INFO, logger="overdrive.scanner"):
+        models = scan_model_cache(hub_root)
+
+    assert len(models) == 1
+    assert "Top-level directories with no config.json" not in caplog.text
+    assert "via artifact fallback" in caplog.text
