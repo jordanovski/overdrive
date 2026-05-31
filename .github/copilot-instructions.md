@@ -18,4 +18,5 @@ When working in this repository:
 - Use semantic versioning for Docker-shipped changes: patch for bug fixes, refactors, dependency updates, or UI tweaks that do not add a new capability; minor for new backward-compatible features, endpoints, commands, pages, options, or workflows; major for breaking changes, removals, incompatible behavior changes, or required migration steps.
 - If a change includes multiple categories, apply the highest required semantic version bump.
 - Do not bump the version for test-only, documentation-only, CI-only, or repository metadata changes that do not affect what runs inside the Docker container.
+- After every code change, run the full test suite with `.\\.venv\\Scripts\\python -m pytest test` before finishing.
 - If a task would normally require committing, branching, stashing, or creating a worktree, stop and ask the user how they want to proceed.
