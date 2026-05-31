@@ -175,6 +175,12 @@ body {
 }
 
 .model-card {
+  display: block;
+  width: 100%;
+  text-align: left;
+  color: var(--text);
+  font: inherit;
+  line-height: 1.25;
   cursor: pointer;
   transition: transform 160ms ease, border-color 160ms ease, background 160ms ease;
 }
