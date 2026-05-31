@@ -88,6 +88,15 @@ _DTYPE_BYTES: dict[str, float] = {
     "i4": 0.5, "int4": 0.5, "nf4": 0.5, "nvfp4": 0.5,
 }
 
+_WEIGHT_FILE_SUFFIXES = (
+    ".safetensors",
+    ".bin",
+    ".pt",
+    ".pth",
+    ".ckpt",
+    ".gguf",
+)
+
 
 def _estimate_size_gb(safetensors: object) -> float | None:
     if safetensors is None:
@@ -100,6 +109,42 @@ def _estimate_size_gb(safetensors: object) -> float | None:
         for dtype, count in params.items()
         if isinstance(count, (int, float))
     )
+    return round(total_bytes / (1024 ** 3), 1)
+
+
+def _model_info_compat(api: HfApi, model_id: str):
+    try:
+        return api.model_info(model_id, files_metadata=True)
+    except TypeError:
+        # Older huggingface_hub versions may not accept files_metadata.
+        return api.model_info(model_id)
+
+
+def _estimate_size_from_model_files_gb(api: HfApi, model_id: str) -> float | None:
+    try:
+        info = _model_info_compat(api, model_id)
+    except Exception:
+        return None
+
+    siblings = getattr(info, "siblings", None)
+    if not isinstance(siblings, list) or not siblings:
+        return None
+
+    weight_total_bytes = 0
+    all_lfs_total_bytes = 0
+    for sibling in siblings:
+        lfs = getattr(sibling, "lfs", None)
+        size = lfs.get("size") if isinstance(lfs, dict) else None
+        if not isinstance(size, int):
+            continue
+        all_lfs_total_bytes += size
+        filename = str(getattr(sibling, "rfilename", "") or "").lower()
+        if filename.endswith(_WEIGHT_FILE_SUFFIXES):
+            weight_total_bytes += size
+
+    total_bytes = weight_total_bytes or all_lfs_total_bytes
+    if total_bytes <= 0:
+        return None
     return round(total_bytes / (1024 ** 3), 1)
 
 
@@ -122,6 +167,8 @@ def search_hub_models(options: HubSearchOptions) -> list[dict[str, object]]:
         full=True,
         cardData=True,
     )
+
+    size_cache: dict[str, float | None] = {}
 
     results: list[dict[str, object]] = []
     for model in records:
@@ -151,6 +198,12 @@ def search_hub_models(options: HubSearchOptions) -> list[dict[str, object]]:
         if options.dgx_ready_only and not dgx_tags:
             continue
 
+        size_gb = _estimate_size_gb(getattr(model, "safetensors", None))
+        if size_gb is None:
+            if model_id not in size_cache:
+                size_cache[model_id] = _estimate_size_from_model_files_gb(api, model_id)
+            size_gb = size_cache[model_id]
+
         results.append(
             {
                 "id": model_id,
@@ -163,7 +216,7 @@ def search_hub_models(options: HubSearchOptions) -> list[dict[str, object]]:
                 "tags": sorted(tags),
                 "dgx_tags": dgx_tags,
                 "quantization_match": bool(quant_tokens),
-                "size_gb": _estimate_size_gb(getattr(model, "safetensors", None)),
+                "size_gb": size_gb,
             }
         )
 
