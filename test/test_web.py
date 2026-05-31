@@ -408,6 +408,7 @@ def test_hub_search_route_returns_results(monkeypatch) -> None:
 def test_hub_download_route_targets_hub_root(monkeypatch) -> None:
     model = _model(size=35.0)
     manager, _ = _manager(model)
+    manager.hub_root = Path("/tmp/models")
 
     monkeypatch.setattr(web_module, "detect_gpus", lambda: [])
 
@@ -428,6 +429,7 @@ def test_hub_download_route_targets_hub_root(monkeypatch) -> None:
     ):
         captured["model_id"] = model_id
         captured["local_dir"] = local_dir
+        captured["exists"] = local_dir.exists()
         captured["includes"] = includes
         captured["excludes"] = excludes
         return {
@@ -454,5 +456,34 @@ def test_hub_download_route_targets_hub_root(monkeypatch) -> None:
     assert payload["local_dir"] == str(expected_dir)
     assert captured["model_id"] == "Qwen/Qwen3-8B"
     assert str(captured["local_dir"]) == str(expected_dir)
+    assert captured["exists"] is True
     assert captured["includes"] == ["*.safetensors"]
     assert captured["excludes"] == ["*.bin"]
+
+
+def test_hub_download_route_reports_unwritable_hub_root(monkeypatch) -> None:
+    model = _model(size=35.0)
+    manager, _ = _manager(model)
+    manager.hub_root = Path("/read-only/models")
+
+    monkeypatch.setattr(web_module, "detect_gpus", lambda: [])
+
+    original_mkdir = Path.mkdir
+
+    def fake_mkdir(self, parents=False, exist_ok=False):
+        if self == manager.hub_root / "Qwen" / "Qwen3-8B":
+            raise OSError("read-only file system")
+        return original_mkdir(self, parents=parents, exist_ok=exist_ok)
+
+    monkeypatch.setattr(Path, "mkdir", fake_mkdir)
+
+    client = TestClient(web_module.create_app(manager))
+    response = client.post(
+        "/api/hub/download",
+        json={
+            "model_id": "Qwen/Qwen3-8B",
+        },
+    )
+
+    assert response.status_code == 400
+    assert "mounted writable" in response.json()["detail"]

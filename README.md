@@ -61,6 +61,7 @@ That token needs `read:packages` access.
 Important:
 
 - The model directory must be mounted into the Overdrive container at the same absolute host path.
+- That model directory mount must be writable if you want the Model Search page to download repos into OVERDRIVE_HUB_ROOT.
 - Overdrive uses the host Docker socket to launch managed vLLM containers.
 - The Compose file also maps `host.docker.internal` to the host gateway so benchmark jobs can reach host-published vLLM ports from inside the Overdrive container.
 - Benchmark artifacts and saved profiles persist in Docker volumes managed by Compose.
@@ -149,14 +150,15 @@ Run it against the host Docker daemon and your model root:
 ```bash
 docker run --rm -p 8080:8080 \
   -v /var/run/docker.sock:/var/run/docker.sock \
-  -v /raid/huggingface:/raid/huggingface:ro \
+  -v /raid/huggingface:/raid/huggingface \
   -e OVERDRIVE_HUB_ROOT=/raid/huggingface \
   ghcr.io/jordanovski/overdrive:latest
 ```
 
 Important: mount the model directory into the Overdrive container at the same absolute
-path it has on the host. Overdrive passes discovered model paths through to Docker when
-it launches vLLM containers, so path parity matters.
+path it has on the host. Keep that mount writable if you want Overdrive to download
+models into it from the Model Search page. Overdrive passes discovered model paths
+through to Docker when it launches vLLM containers, so path parity matters.
 
 For benchmark runs from inside the Overdrive container, also make sure the container has
 enough disk available for SWE-bench build and evaluation artifacts.

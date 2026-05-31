@@ -37,6 +37,7 @@ from overdrive.state import EngineStateManager
 
 PACKAGE_ROOT = Path(__file__).resolve().parent
 TEMPLATES = Jinja2Templates(directory=str(PACKAGE_ROOT / "templates"))
+TEMPLATES.env.globals["app_version"] = __version__
 
 
 class LaunchSettings(BaseModel):
@@ -317,6 +318,16 @@ def create_app(
         if not model_id:
             raise HTTPException(status_code=400, detail="model_id is required")
         local_dir = manager.hub_root / model_id
+        try:
+            local_dir.mkdir(parents=True, exist_ok=True)
+        except OSError as exc:
+            raise HTTPException(
+                status_code=400,
+                detail=(
+                    f"Cannot create download destination '{local_dir}'. "
+                    "Verify that OVERDRIVE_HUB_ROOT is mounted writable in the Overdrive container."
+                ),
+            ) from exc
         try:
             result = download_model(
                 model_id,

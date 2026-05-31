@@ -24,7 +24,7 @@ services:
       - type: bind
         source: ${OVERDRIVE_HUB_ROOT:-/raid/huggingface}
         target: ${OVERDRIVE_HUB_ROOT:-/raid/huggingface}
-        read_only: true
+        read_only: false
       - type: volume
         source: overdrive_cache
         target: /root/.cache/overdrive
