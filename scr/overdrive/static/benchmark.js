@@ -106,7 +106,6 @@ function renderBenchmarkModels() {
       <span>
         <strong>${model.display_name}</strong>
         <span class="meta-line">${model.architecture}</span>
-        <span class="meta-line">${model.hardware_summary}</span>
       </span>
     </label>
   `).join('');
@@ -387,34 +386,64 @@ function renderBenchmarkHistory() {
 function renderDiscoveryDiagnostics() {
   const diagnostics = benchmarkState.diagnostics;
   if (!diagnostics) {
+    benchmarkUi.diagnostics.className = 'discovery-diagnostics empty-state';
     benchmarkUi.diagnostics.textContent = 'Waiting for diagnostics.';
     return;
   }
+  benchmarkUi.diagnostics.className = 'discovery-diagnostics';
 
   const missing = diagnostics.missing_config_directories || [];
   const discovered = diagnostics.discovered_model_ids || [];
-  const lines = [
-    `hub_root=${diagnostics.hub_root}`,
-    `exists=${diagnostics.exists}`,
-    `top_level_directory_count=${diagnostics.top_level_directory_count}`,
-    `config_candidate_count=${diagnostics.candidate_count}`,
-    `discovered_count=${diagnostics.discovered_count}`,
-    `discovered_model_ids=${discovered.join(', ') || 'none'}`,
+  const topLevel = diagnostics.top_level || [];
+
+  // Stats row
+  const rootOk = diagnostics.exists;
+  const stats = [
+    { label: 'Hub root', value: diagnostics.hub_root, mono: true },
+    { label: 'Root exists', value: rootOk ? 'yes' : 'NO — path not found', warn: !rootOk },
+    { label: 'Top-level folders', value: diagnostics.top_level_directory_count ?? '—' },
+    { label: 'Config files found', value: diagnostics.candidate_count ?? '—' },
+    { label: 'Models discovered', value: diagnostics.discovered_count ?? '—' },
   ];
 
-  if (missing.length) {
-    lines.push(`missing_config_directories=${missing.join(', ')}`);
-  }
+  const statsHtml = `<div class="diag-stats">${stats.map((s) => `
+    <div class="diag-stat${s.warn ? ' diag-warn' : ''}">
+      <span class="diag-stat-label">${escapeHtml(s.label)}</span>
+      <span class="diag-stat-value${s.mono ? ' diag-mono' : ''}">${escapeHtml(String(s.value))}</span>
+    </div>`).join('')}
+  </div>`;
 
-  const topLevel = diagnostics.top_level || [];
-  for (const entry of topLevel.slice(0, 20)) {
-    lines.push(`- ${entry.name}: config_count=${entry.config_count}`);
-    if (entry.sample_configs?.length) {
-      lines.push(`  sample=${entry.sample_configs.join(', ')}`);
-    }
-  }
+  // Discovered model IDs
+  const modelListHtml = discovered.length
+    ? `<div class="diag-model-ids">${discovered.map((id) => `<span class="tag-chip">${escapeHtml(id)}</span>`).join('')}</div>`
+    : '';
 
-  benchmarkUi.diagnostics.textContent = lines.join('\n');
+  // Missing dirs warning
+  const missingHtml = missing.length
+    ? `<div class="diag-warn-block"><strong>Folders with no config.json:</strong> ${missing.map((m) => `<code>${escapeHtml(m)}</code>`).join(', ')}</div>`
+    : '';
+
+  // Per-folder table
+  const folderRowsHtml = topLevel.slice(0, 20).map((entry) => {
+    const ok = entry.config_count > 0 || entry.heuristic_model_like;
+    const sample = entry.sample_configs?.length
+      ? `<div class="diag-sample">${escapeHtml(entry.sample_configs[0])}</div>`
+      : '';
+    return `<tr class="${ok ? '' : 'diag-row-warn'}">
+      <td class="diag-mono">${escapeHtml(entry.name)}</td>
+      <td>${entry.config_count}</td>
+      <td>${entry.heuristic_model_like ? 'yes' : '—'}</td>
+      <td class="diag-sample-cell">${sample}</td>
+    </tr>`;
+  }).join('');
+
+  const tableHtml = topLevel.length ? `
+    <table class="diag-table">
+      <thead><tr><th>Folder</th><th>Configs</th><th>Auto-detected</th><th>Sample path</th></tr></thead>
+      <tbody>${folderRowsHtml}</tbody>
+    </table>` : '';
+
+  benchmarkUi.diagnostics.innerHTML = statsHtml + modelListHtml + missingHtml + tableHtml;
 }
 
 async function refreshBenchmarkModels() {

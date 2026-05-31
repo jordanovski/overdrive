@@ -158,7 +158,7 @@ function renderSelected() {
   }
   ui.selectedTitle.textContent = model.model_id;
   ui.selectedSubtitle.textContent = `${model.architecture} • ${model.dtype_display}`;
-  ui.selectedSummary.textContent = model.hardware_summary;
+  ui.selectedSummary.textContent = model.snapshot_path;
   ui.recommendationGrid.innerHTML = [
     ['Recommended Port', model.recommendations.preferred_port],
     ['Max Model Length', model.recommendations.max_model_len],

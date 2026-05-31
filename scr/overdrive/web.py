@@ -116,14 +116,6 @@ def _recommended_launch_settings(
     )
 
 
-def _hardware_summary(gpus: list[GPUDevice]) -> str:
-    if not gpus:
-        return "No GPU telemetry available"
-    return "; ".join(
-        f"{gpu.name}: free {gpu.free_memory_gb:g}/{gpu.total_memory_gb:g} GiB" for gpu in gpus
-    )
-
-
 def _serialize_model(
     manager: EngineStateManager,
     model: ModelMetadata,
@@ -141,7 +133,6 @@ def _serialize_model(
         "dtype_display": _display_dtype(model),
         "parameter_size_billions": model.parameter_size_billions,
         "snapshot_path": str(model.snapshot_path),
-        "hardware_summary": _hardware_summary(gpus),
         "profile": model.profile.model_dump(mode="json"),
         "recommendations": recommendations,
         "command_preview": preview,

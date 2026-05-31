@@ -618,6 +618,118 @@ button:hover,
   font-size: 0.8rem;
 }
 
+/* ── Discovery diagnostics ──────────────────────────────────── */
+.discovery-diagnostics {
+  display: grid;
+  gap: 12px;
+  margin-top: 4px;
+}
+
+.diag-stats {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(180px, 1fr));
+  gap: 8px;
+}
+
+.diag-stat {
+  padding: 9px 12px;
+  border-radius: 12px;
+  border: 1px solid rgba(155, 178, 173, 0.14);
+  background: rgba(255, 255, 255, 0.025);
+  display: grid;
+  gap: 3px;
+}
+
+.diag-stat.diag-warn {
+  border-color: rgba(255, 100, 80, 0.4);
+  background: rgba(255, 60, 40, 0.07);
+}
+
+.diag-stat-label {
+  font-size: 0.75rem;
+  color: var(--muted);
+  letter-spacing: 0.03em;
+  text-transform: uppercase;
+}
+
+.diag-stat-value {
+  font-size: 0.9rem;
+  color: var(--text);
+  word-break: break-all;
+}
+
+.diag-stat-value.diag-mono,
+.diag-mono {
+  font-family: var(--font-mono);
+  font-size: 0.82rem;
+}
+
+.diag-model-ids {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+}
+
+.diag-warn-block {
+  padding: 10px 14px;
+  border-radius: 12px;
+  border: 1px solid rgba(255, 100, 80, 0.4);
+  background: rgba(255, 60, 40, 0.07);
+  font-size: 0.88rem;
+  color: #f1b1a8;
+}
+
+.diag-warn-block code {
+  font-family: var(--font-mono);
+  font-size: 0.82rem;
+  background: rgba(0,0,0,0.3);
+  padding: 1px 5px;
+  border-radius: 5px;
+}
+
+.diag-table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 0.85rem;
+}
+
+.diag-table th,
+.diag-table td {
+  padding: 7px 10px;
+  text-align: left;
+  border-bottom: 1px solid rgba(155, 178, 173, 0.1);
+}
+
+.diag-table th {
+  font-size: 0.75rem;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  color: var(--muted);
+  font-weight: 600;
+}
+
+.diag-table tbody tr:last-child td {
+  border-bottom: none;
+}
+
+.diag-table .diag-row-warn td {
+  color: #f1b1a8;
+}
+
+.diag-sample {
+  font-family: var(--font-mono);
+  font-size: 0.77rem;
+  color: var(--muted);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  max-width: 260px;
+}
+
+.diag-sample-cell {
+  max-width: 260px;
+}
+
 @media (max-width: 1100px) {
   .layout {
     grid-template-columns: 1fr;
