@@ -9,6 +9,7 @@ const benchmarkState = {
 
 const benchmarkUi = {
   hubRoot: document.getElementById('hub-root'),
+  commands: document.getElementById('benchmark-commands'),
   modelCount: document.getElementById('benchmark-model-count'),
   modelList: document.getElementById('benchmark-model-list'),
   refreshModels: document.getElementById('refresh-benchmark-models'),
@@ -135,6 +136,96 @@ function benchmarkFormPayload() {
   };
 }
 
+function copyToClipboard(text, button) {
+  navigator.clipboard.writeText(text).then(() => {
+    const original = button.textContent;
+    button.textContent = 'Copied!';
+    setTimeout(() => { button.textContent = original; }, 1500);
+  }).catch(() => {
+    button.textContent = 'Failed';
+    setTimeout(() => { button.textContent = 'Copy'; }, 1500);
+  });
+}
+
+function renderBenchmarkCommands(job) {
+  if (!job || !job.model_runs.length) {
+    benchmarkUi.commands.className = 'commands-list empty-state';
+    benchmarkUi.commands.textContent = 'Select a run to see its commands.';
+    return;
+  }
+  benchmarkUi.commands.className = 'commands-list';
+
+  const host = job.config._runtime_host || 'host.docker.internal';
+  const sections = job.model_runs.map((run) => {
+    const steps = [];
+
+    // Step 1: docker run
+    if (run.docker_run_command) {
+      steps.push({ label: 'Step 1 — Launch vLLM container', cmd: run.docker_run_command });
+    } else if (run.container_name && run.host_port) {
+      steps.push({ label: 'Step 1 — Launch vLLM container', cmd: `# docker_run_command not yet captured (run not started or old job)` });
+    }
+
+    // Step 2: readiness probe
+    const probeUrl = run.vllm_probe_url || (run.host_port ? `http://host.docker.internal:${run.host_port}/v1/models` : null);
+    if (probeUrl) {
+      steps.push({ label: 'Step 2 — Wait for vLLM readiness (poll until 200)', cmd: `curl -s ${probeUrl}` });
+    }
+
+    // Step 3: evaluation
+    if (run.evaluation_command) {
+      steps.push({ label: 'Step 3 — Run SWE-bench evaluation', cmd: run.evaluation_command });
+    }
+
+    if (!steps.length) {
+      return `<div class="command-block"><div class="command-block-header"><strong>${escapeHtml(run.display_name || run.model_id)}</strong><span class="status-pill ${statusTone(run.status)}">${run.status.replaceAll('_', ' ')}</span></div><div class="meta-line muted">No commands recorded yet — commands are captured as the run progresses.</div></div>`;
+    }
+
+    const stepsHtml = steps.map((step, i) => `
+      <div class="command-step">
+        <div class="command-step-label">${escapeHtml(step.label)}</div>
+        <div class="command-step-row">
+          <pre class="command-pre">${escapeHtml(step.cmd)}</pre>
+          <button class="ghost-button copy-btn" type="button" data-cmd="${i}-${encodeURIComponent(run.model_id)}">Copy</button>
+        </div>
+      </div>
+    `).join('');
+
+    return `<div class="command-block" data-model-id="${escapeHtml(run.model_id)}">
+      <div class="command-block-header">
+        <strong>${escapeHtml(run.display_name || run.model_id)}</strong>
+        <span class="status-pill ${statusTone(run.status)}">${run.status.replaceAll('_', ' ')}</span>
+      </div>
+      ${stepsHtml}
+    </div>`;
+  });
+
+  benchmarkUi.commands.innerHTML = sections.join('');
+
+  // Wire up copy buttons — store commands in a map keyed by data-cmd
+  const cmdMap = new Map();
+  job.model_runs.forEach((run) => {
+    const probeUrl = run.vllm_probe_url || (run.host_port ? `http://host.docker.internal:${run.host_port}/v1/models` : null);
+    const steps = [];
+    if (run.docker_run_command) steps.push(run.docker_run_command);
+    else steps.push(null);
+    if (probeUrl) steps.push(`curl -s ${probeUrl}`);
+    else steps.push(null);
+    if (run.evaluation_command) steps.push(run.evaluation_command);
+    else steps.push(null);
+    steps.forEach((cmd, i) => {
+      if (cmd) cmdMap.set(`${i}-${encodeURIComponent(run.model_id)}`, cmd);
+    });
+  });
+
+  for (const btn of benchmarkUi.commands.querySelectorAll('.copy-btn')) {
+    btn.addEventListener('click', () => {
+      const cmd = cmdMap.get(btn.dataset.cmd);
+      if (cmd) copyToClipboard(cmd, btn);
+    });
+  }
+}
+
 function renderBenchmarkJob(job) {
   if (!job) {
     benchmarkUi.caption.textContent = 'No active benchmark job.';
@@ -144,6 +235,7 @@ function renderBenchmarkJob(job) {
     benchmarkUi.chart.textContent = 'No results yet.';
     benchmarkUi.progressBar.style.width = '0%';
     benchmarkUi.progressText.textContent = 'No benchmark in progress.';
+    renderBenchmarkCommands(null);
     return;
   }
 
@@ -224,6 +316,8 @@ function renderBenchmarkJob(job) {
       `;
     }).join('');
   }
+
+  renderBenchmarkCommands(job);
 
   const logLines = [];
   if (job.events?.length) {

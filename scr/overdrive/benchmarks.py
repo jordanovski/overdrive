@@ -485,6 +485,8 @@ class BenchmarkService:
             launch_command = (
                 shlex.join(["vllm", "serve", *launch_args]) if launch_args else None
             )
+            docker_run_command = getattr(launch_result, "docker_run_command", None)
+            vllm_probe_url = f"{_runtime_base_url(launch_result.host_port)}/v1/models"
             self._mutate_job(
                 job_id,
                 lambda job: self._mark_model(
@@ -492,6 +494,8 @@ class BenchmarkService:
                     model_id,
                     status="waiting_for_vllm",
                     launch_command=launch_command,
+                    docker_run_command=docker_run_command,
+                    vllm_probe_url=vllm_probe_url,
                     host_port=launch_result.host_port,
                     container_name=launch_result.container_name,
                     event=f"Waiting for vLLM readiness on port {launch_result.host_port}.",

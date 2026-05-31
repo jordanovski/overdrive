@@ -223,6 +223,7 @@ class DockerRuntime:
                 status="dry-run",
                 image=VLLM_IMAGE,
                 command=command,
+                docker_run_command=self.build_docker_run_command(metadata, launch),
             )
 
         labels = {
@@ -250,6 +251,7 @@ class DockerRuntime:
             status="running",
             image=VLLM_IMAGE,
             command=command,
+            docker_run_command=self.build_docker_run_command(metadata, launch),
         )
 
     def stop_model(self, *, model_id: str | None = None, container_name: str | None = None) -> bool:

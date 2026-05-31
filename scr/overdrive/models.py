@@ -113,6 +113,7 @@ class LaunchResult(BaseModel):
     status: Literal["dry-run", "running"]
     image: str
     command: list[str]
+    docker_run_command: str | None = None
 
 
 class OverdriveProfiles(BaseModel):
@@ -151,6 +152,8 @@ class BenchmarkModelRun(BaseModel):
     ] = "pending"
     selected_settings: dict[str, int | float | str | None] = Field(default_factory=dict)
     launch_command: str | None = None
+    docker_run_command: str | None = None
+    vllm_probe_url: str | None = None
     evaluation_command: str | None = None
     evaluation_log_path: Path | None = None
     evaluation_log_excerpt: str | None = None

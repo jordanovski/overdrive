@@ -673,3 +673,71 @@ button:hover,
     grid-template-columns: 1fr;
   }
 }
+
+/* ── Commands panel ─────────────────────────────────────────── */
+.commands-panel,
+.logs-panel {
+  grid-column: 1 / -1;
+}
+
+.commands-list {
+  display: grid;
+  gap: 18px;
+}
+
+.command-block {
+  padding: 16px;
+  border-radius: 18px;
+  border: 1px solid rgba(155, 178, 173, 0.16);
+  background: rgba(255, 255, 255, 0.025);
+  display: grid;
+  gap: 14px;
+}
+
+.command-block-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 12px;
+  flex-wrap: wrap;
+}
+
+.command-step {
+  display: grid;
+  gap: 6px;
+}
+
+.command-step-label {
+  font-size: 0.85rem;
+  font-weight: 600;
+  color: var(--accent);
+  letter-spacing: 0.02em;
+}
+
+.command-step-row {
+  display: grid;
+  grid-template-columns: 1fr auto;
+  gap: 8px;
+  align-items: start;
+}
+
+.command-pre {
+  margin: 0;
+  padding: 12px 14px;
+  border-radius: 14px;
+  border: 1px solid rgba(155, 178, 173, 0.16);
+  background: rgba(4, 9, 12, 0.88);
+  color: #dce7e3;
+  font: 0.82rem/1.5 var(--font-mono);
+  overflow-x: auto;
+  white-space: pre-wrap;
+  word-break: break-all;
+}
+
+.copy-btn {
+  padding: 6px 14px;
+  font-size: 0.8rem;
+  white-space: nowrap;
+  align-self: start;
+  margin-top: 2px;
+}
