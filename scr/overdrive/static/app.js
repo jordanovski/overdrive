@@ -11,8 +11,7 @@ const ui = {
   modelList: document.getElementById('model-list'),
   selectedTitle: document.getElementById('selected-title'),
   selectedSubtitle: document.getElementById('selected-subtitle'),
-  selectedSummary: document.getElementById('selected-summary'),
-  recommendationGrid: document.getElementById('recommendation-grid'),
+  selectedRuntime: document.getElementById('selected-runtime'),
   containers: document.getElementById('containers'),
   stats: document.getElementById('stats'),
   logs: document.getElementById('logs'),
@@ -22,7 +21,6 @@ const ui = {
   eventLog: document.getElementById('event-log'),
   form: document.getElementById('settings-form'),
   refreshModels: document.getElementById('refresh-models'),
-  planAction: document.getElementById('plan-action'),
   launchAction: document.getElementById('launch-action'),
   saveProfileAction: document.getElementById('save-profile-action'),
   stopAction: document.getElementById('stop-action'),
@@ -75,21 +73,25 @@ function setFormValues(model) {
   document.getElementById('gpu-budget').value = settings.gpu_memory_budget_gb ?? '';
 }
 
+function selectedModelContainer() {
+  const model = selectedModel();
+  if (!model) {
+    return null;
+  }
+  const matches = state.containers.filter((item) => item.model_id === model.model_id);
+  return matches.find((item) => item.status === 'running') || matches[0] || null;
+}
+
 function formatCommandPreview(preview) {
   if (!preview) {
     return 'No command preview available.';
   }
   const lines = [
     `Image: ${preview.image}`,
-    `Ports: host ${preview.host_port} -> container ${preview.container_port}`,
+    `Port mapping: host ${preview.host_port} -> container ${preview.container_port}`,
+    `Model mount: ${preview.model_source_path || 'n/a'} -> ${preview.model_container_path || '/models/current'}`,
     '',
-    'Model Mapping:',
-    `Source on host: ${preview.model_source_path || 'n/a'}`,
-    `Mounted in container: ${preview.model_container_path || '/models/current'}`,
-    `vLLM --model arg: ${preview.model_container_path || '/models/current'}`,
-    'Why this is expected: the selected host path is bind-mounted to the container path above.',
-    '',
-    'Inner vLLM Command:',
+    'vLLM command:',
     preview.shell,
   ];
   if (preview.docker_shell) {
@@ -101,8 +103,8 @@ function formatCommandPreview(preview) {
 async function refreshCommandPreview() {
   const model = selectedModel();
   if (!model) {
-    ui.commandCaption.textContent = 'Resolved from the current form values';
-    ui.commandPreview.textContent = 'Select a model to preview launch commands and how model paths are mapped into the container.';
+    ui.commandCaption.textContent = 'Resolved from current Launch Settings';
+    ui.commandPreview.textContent = 'Select a model to preview the exact docker and vLLM commands.';
     return;
   }
   try {
@@ -152,37 +154,47 @@ function renderSelected() {
   if (!model) {
     ui.selectedTitle.textContent = 'Select a model';
     ui.selectedSubtitle.textContent = '';
-    ui.selectedSummary.textContent = 'Choose a discovered model to edit launch settings.';
-    ui.recommendationGrid.innerHTML = '';
+    ui.selectedRuntime.textContent = 'Choose a discovered model to view runtime status.';
     return;
   }
   ui.selectedTitle.textContent = model.model_id;
   ui.selectedSubtitle.textContent = `${model.architecture} • ${model.dtype_display}`;
-  ui.selectedSummary.textContent = model.snapshot_path;
-  ui.recommendationGrid.innerHTML = [
-    ['Recommended Port', model.recommendations.preferred_port],
-    ['Max Model Length', model.recommendations.max_model_len],
-    ['Tensor Parallel', model.recommendations.tensor_parallel_size],
-    ['KV Cache', model.recommendations.kv_cache_dtype || 'auto'],
-    ['GPU Budget', `${model.recommendations.gpu_memory_budget_gb} GiB`],
-  ].map(([label, value]) => `
-    <div class="recommendation-card">
-      <strong>${label}</strong>
-      <div class="meta-line">${value}</div>
+  const container = selectedModelContainer();
+  if (!container) {
+    ui.selectedRuntime.innerHTML = `
+      <div class="status-card">
+        <strong>${model.display_name}</strong>
+        <div class="meta-line">Not running.</div>
+        <div class="meta-line">Configured path: ${model.snapshot_path}</div>
+        <div class="meta-line">Launch settings are pre-filled below and can be edited.</div>
+      </div>
+    `;
+    return;
+  }
+  ui.selectedRuntime.innerHTML = `
+    <div class="status-card ${container.status === 'exited' || container.status === 'dead' ? 'status-error' : 'runtime-selected'}">
+      <strong>${model.display_name}</strong>
+      <div class="meta-line">Container: ${container.name}</div>
+      <div class="meta-line">Status: ${container.status}</div>
+      <div class="meta-line">Port: ${container.host_port ?? 'n/a'}</div>
+      <div class="meta-line">Image: ${container.image}</div>
     </div>
-  `).join('');
+  `;
 }
 
 function renderRuntime() {
   if (!state.containers.length) {
     ui.containers.innerHTML = '<span class="muted">No active Overdrive containers.</span>';
   } else {
+    const selected = selectedModel();
     ui.containers.innerHTML = state.containers.map((item) => {
       const failed = item.status === 'exited' || item.status === 'dead';
+      const isSelected = selected && item.model_id === selected.model_id;
       return `
-      <div class="status-card ${failed ? 'status-error' : ''}">
+      <div class="status-card ${failed ? 'status-error' : ''} ${isSelected ? 'runtime-selected' : ''}">
         <strong>${item.model_id || item.name}</strong>
         <div class="meta-line">${item.status} • port ${item.host_port ?? 'n/a'}${failed ? ' — container exited, check logs below' : ''}</div>
+        <div class="meta-line">${isSelected ? 'Selected model container' : 'Other model container'}</div>
         <div class="meta-line">${item.image}</div>
       </div>`;
     }).join('');
@@ -200,6 +212,8 @@ function renderRuntime() {
       </div>
     `).join('');
   }
+
+  renderSelected();
 }
 
 async function refreshModels(preserveSelection = true) {
@@ -262,14 +276,6 @@ async function performAction(path, successMessage) {
 ui.refreshModels.addEventListener('click', async () => {
   await refreshModels(false);
   appendLog('Model list refreshed.');
-});
-
-ui.planAction.addEventListener('click', async () => {
-  const payload = await performAction('/api/models/{modelId}/plan', (payload) => payload.display);
-  if (payload) {
-    ui.commandCaption.textContent = payload.display;
-    ui.commandPreview.textContent = formatCommandPreview(payload.command_preview);
-  }
 });
 
 ui.launchAction.addEventListener('click', async () => {

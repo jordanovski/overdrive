@@ -37,8 +37,7 @@
             <h2 id="selected-title">Select a model</h2>
             <span id="selected-subtitle" class="muted"></span>
           </div>
-          <p id="selected-summary" class="summary-copy">Choose a discovered model to edit launch settings.</p>
-          <div id="recommendation-grid" class="recommendation-grid"></div>
+          <div id="selected-runtime" class="status-list empty-state">Choose a discovered model to view runtime status.</div>
         </section>
 
         <section class="panel form-panel">
@@ -47,7 +46,6 @@
             <span class="muted">Web replacement for the previous TUI controls</span>
           </div>
           <div class="action-row">
-            <button id="plan-action" class="primary-button" type="button">Plan Launch</button>
             <button id="launch-action" class="success-button" type="button">Launch Model</button>
             <button id="save-profile-action" class="ghost-button" type="button">Save Profile</button>
             <button id="stop-action" class="warning-button" type="button">Stop Model</button>
@@ -77,10 +75,10 @@
           </form>
           <div class="command-preview">
             <div class="section-heading">
-              <h2>Launch Command and Model Mapping</h2>
-              <span id="command-caption" class="muted">Resolved from the selected model and current form values</span>
+              <h2>Launch Command Preview</h2>
+              <span id="command-caption" class="muted">Resolved from current Launch Settings</span>
             </div>
-            <pre id="command-preview" class="event-log">Select a model to preview launch commands and how model paths are mapped into the container.</pre>
+            <pre id="command-preview" class="event-log">Select a model to preview the exact docker and vLLM commands.</pre>
           </div>
           <pre id="event-log" class="event-log">Waiting for input.</pre>
         </section>
@@ -88,7 +86,7 @@
         <section class="panel runtime-panel">
           <div class="section-heading">
             <h2>Managed Containers</h2>
-            <span class="muted">Auto-refreshes every 2 seconds</span>
+            <span class="muted">All managed containers (selected model is highlighted)</span>
           </div>
           <div id="containers" class="status-list empty-state">No active Overdrive containers.</div>
         </section>

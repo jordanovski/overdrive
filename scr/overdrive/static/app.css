@@ -250,6 +250,11 @@ body {
   background: rgba(255, 60, 40, 0.08);
 }
 
+.status-card.runtime-selected {
+  border-color: rgba(139, 196, 184, 0.45);
+  background: rgba(139, 196, 184, 0.08);
+}
+
 .model-card {
   display: block;
   width: 100%;
