@@ -8,22 +8,16 @@
 </head>
 <body data-hub-root="{{ hub_root }}">
   <div class="shell">
-    <header class="hero panel">
-      <div>
-        <p class="eyebrow">Overdrive Hub Scout</p>
-        <h1>Find DGX-ready models before you pull them.</h1>
-        <p class="hero-copy">Search the Hugging Face Hub by name, quantization, and runtime-relevant tags, then download selected repositories directly under your configured OVERDRIVE_HUB_ROOT.</p>
-        <nav class="nav-row">
-          <a href="/" class="ghost-button nav-link">Control Deck</a>
-          <a href="/models-search" class="primary-button nav-link is-active">Model Search</a>
-          <a href="/benchmarks" class="ghost-button nav-link">SWE-bench</a>
-        </nav>
-      </div>
-      <div class="hero-meta">
-        <span class="badge">Hub Root</span>
-        <strong id="hub-root"></strong>
-        <span class="badge">Version</span>
-        <strong>{{ app_version }}</strong>
+    <header class="topbar panel">
+      <div class="topbar-brand">Overdrive</div>
+      <nav class="topbar-nav">
+        <a href="/" class="ghost-button nav-link">Control Deck</a>
+        <a href="/models-search" class="primary-button nav-link is-active">Model Search</a>
+        <a href="/benchmarks" class="ghost-button nav-link">SWE-bench</a>
+      </nav>
+      <div class="topbar-meta">
+        <span class="topbar-info"><span class="muted">Hub:</span> <strong id="hub-root"></strong></span>
+        <span class="topbar-info"><span class="muted">v</span><strong>{{ app_version }}</strong></span>
       </div>
     </header>
 

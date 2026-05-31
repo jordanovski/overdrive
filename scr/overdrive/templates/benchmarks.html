@@ -8,23 +8,17 @@
 </head>
 <body data-hub-root="{{ hub_root }}">
   <div class="shell">
-    <header class="hero panel">
-      <div>
-        <p class="eyebrow">Overdrive Bench Lab</p>
-        <h1>Run SWE-bench across multiple local models.</h1>
-        <p class="hero-copy">Select any number of local models, let Overdrive launch them one by one with recommended vLLM settings, and compare their final resolution rates in one view.</p>
-        <nav class="nav-row">
-          <a href="/" class="ghost-button nav-link">Control Deck</a>
-          <a href="/models-search" class="ghost-button nav-link">Model Search</a>
-          <a href="/benchmarks" class="primary-button nav-link is-active">SWE-bench</a>
-        </nav>
-      </div>
-      <div class="hero-meta">
-        <span class="badge">Hub Root</span>
-        <strong id="hub-root"></strong>
-        <span class="badge">Version</span>
-        <strong>{{ app_version }}</strong>
-        <button id="refresh-benchmark-models" class="ghost-button" type="button">Refresh Models</button>
+    <header class="topbar panel">
+      <div class="topbar-brand">Overdrive</div>
+      <nav class="topbar-nav">
+        <a href="/" class="ghost-button nav-link">Control Deck</a>
+        <a href="/models-search" class="ghost-button nav-link">Model Search</a>
+        <a href="/benchmarks" class="primary-button nav-link is-active">SWE-bench</a>
+      </nav>
+      <div class="topbar-meta">
+        <span class="topbar-info"><span class="muted">Hub:</span> <strong id="hub-root"></strong></span>
+        <span class="topbar-info"><span class="muted">v</span><strong>{{ app_version }}</strong></span>
+        <button id="refresh-benchmark-models" class="ghost-button topbar-btn" type="button">Refresh</button>
       </div>
     </header>
 

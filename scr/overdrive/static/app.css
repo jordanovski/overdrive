@@ -32,7 +32,7 @@ body {
 
 .shell {
   width: min(1500px, calc(100vw - 32px));
-  margin: 24px auto 40px;
+  margin: 12px auto 40px;
 }
 
 .panel {
@@ -43,6 +43,65 @@ body {
   backdrop-filter: blur(16px);
 }
 
+/* ── Compact topbar ─────────────────────────────────────────── */
+.topbar {
+  display: flex;
+  align-items: center;
+  gap: 16px;
+  padding: 10px 18px;
+  border-radius: 16px;
+  flex-wrap: wrap;
+}
+
+.topbar-brand {
+  font-size: 1rem;
+  font-weight: 700;
+  letter-spacing: 0.06em;
+  color: var(--accent-strong);
+  white-space: nowrap;
+  margin-right: 4px;
+}
+
+.topbar-nav {
+  display: flex;
+  gap: 6px;
+  padding: 4px;
+  border-radius: 999px;
+  border: 1px solid rgba(155, 178, 173, 0.18);
+  background: rgba(6, 14, 18, 0.6);
+}
+
+.topbar-nav .nav-link {
+  padding: 6px 16px;
+  font-size: 0.85rem;
+  min-width: 0;
+  border-radius: 999px;
+}
+
+.topbar-meta {
+  display: flex;
+  align-items: center;
+  gap: 14px;
+  margin-left: auto;
+  flex-wrap: wrap;
+}
+
+.topbar-info {
+  font-size: 0.82rem;
+  color: var(--muted);
+  white-space: nowrap;
+}
+
+.topbar-info strong {
+  color: var(--text);
+}
+
+.topbar-btn {
+  padding: 5px 14px;
+  font-size: 0.82rem;
+}
+
+/* ── Legacy hero (kept for backwards compat if needed) ──────── */
 .hero {
   padding: 28px 30px;
   display: flex;
@@ -122,7 +181,7 @@ body {
   display: grid;
   grid-template-columns: 360px 1fr;
   gap: 18px;
-  margin-top: 18px;
+  margin-top: 10px;
 }
 
 .sidebar,
