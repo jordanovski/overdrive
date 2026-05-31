@@ -112,14 +112,32 @@ function renderResults() {
       if (!modelId) {
         return;
       }
+      const card = button.closest('.hub-result-card');
+      let statusEl = card.querySelector('.dl-inline-status');
+      if (!statusEl) {
+        statusEl = document.createElement('div');
+        statusEl.className = 'dl-inline-status';
+        button.insertAdjacentElement('afterend', statusEl);
+      }
+
       button.disabled = true;
+      button.textContent = 'Downloading…';
+      statusEl.className = 'dl-inline-status dl-in-progress';
+      statusEl.textContent = 'Download in progress — this may take several minutes for large models.';
+
       try {
         const payload = await hubJson('/api/hub/download', {
           method: 'POST',
           body: JSON.stringify({ model_id: modelId }),
         });
+        statusEl.className = 'dl-inline-status dl-success';
+        statusEl.textContent = `Saved to ${payload.local_dir}`;
+        button.textContent = 'Re-download';
         logDownload(`Downloaded ${payload.model_id} to ${payload.local_dir}`);
       } catch (error) {
+        statusEl.className = 'dl-inline-status dl-error';
+        statusEl.textContent = error.message;
+        button.textContent = 'Retry';
         logDownload(`Download failed for ${modelId}: ${error.message}`);
       } finally {
         button.disabled = false;
