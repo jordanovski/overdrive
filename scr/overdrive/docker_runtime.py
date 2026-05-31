@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import contextlib
+import logging
 import socket
 
 import docker
@@ -21,6 +22,7 @@ VLLM_IMAGE = "nvcr.io/nvidia/vllm:26.04-py3"
 OVERDRIVE_OWNER = "overdrive"
 INTERNAL_VLLM_PORT = 8000
 MEMORY_LABEL = "memory_reservation_gb"
+LOGGER = logging.getLogger(__name__)
 
 
 def _slugify_model_id(model_id: str) -> str:
@@ -243,14 +245,19 @@ class DockerRuntime:
         try:
             container = self.client.containers.get(container_name)
             raw_stats = container.stats(stream=False)
-        except DockerException:
+        except (DockerException, ValueError, TypeError) as exc:
+            LOGGER.warning("Failed to read stats for container %s: %s", container_name, exc)
             return None
         return _parse_container_stats(container, raw_stats)
 
     def list_managed_stats(self) -> list[ContainerStats]:
         stats: list[ContainerStats] = []
         for record in self.list_managed_containers():
-            snapshot = self.get_container_stats(record.name)
+            try:
+                snapshot = self.get_container_stats(record.name)
+            except Exception as exc:  # Defensive guard against third-party client failures.
+                LOGGER.warning("Skipping stats for container %s: %s", record.name, exc)
+                continue
             if snapshot is not None:
                 stats.append(snapshot)
         return stats

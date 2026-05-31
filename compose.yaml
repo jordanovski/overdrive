@@ -10,6 +10,9 @@ services:
       OVERDRIVE_HUB_ROOT: "${OVERDRIVE_HUB_ROOT:-/raid/huggingface}"
       OVERDRIVE_LOG_LEVEL: "${OVERDRIVE_LOG_LEVEL:-INFO}"
       OVERDRIVE_RUNTIME_HOST: "${OVERDRIVE_RUNTIME_HOST:-host.docker.internal}"
+      OVERDRIVE_PROFILES: "${OVERDRIVE_PROFILES:-}"
+      HF_TOKEN: "${HF_TOKEN:-}"
+      HUGGING_FACE_HUB_TOKEN: "${HUGGING_FACE_HUB_TOKEN:-}"
       OVERDRIVE_WEB_PORT: "8080"
     extra_hosts:
       - "host.docker.internal:host-gateway"

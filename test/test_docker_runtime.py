@@ -1,4 +1,5 @@
 import socket
+from types import SimpleNamespace
 
 from overdrive.docker_runtime import DockerRuntime, estimate_required_memory_gb
 from overdrive.models import LaunchConfig, ModelMetadata, ModelProfile
@@ -51,3 +52,36 @@ def test_estimate_required_memory_gb_uses_dtype() -> None:
 
     assert estimate is not None
     assert estimate > 10
+
+
+def test_get_container_stats_handles_invalid_payload() -> None:
+    class BrokenContainer:
+        id = "cid"
+        name = "broken"
+        labels = {"model": "org/model"}
+
+        def stats(self, stream=False):
+            raise ValueError("invalid json")
+
+    fake_client = SimpleNamespace(
+        containers=SimpleNamespace(
+            get=lambda name: BrokenContainer(),
+        )
+    )
+    runtime = DockerRuntime(client=fake_client)
+
+    assert runtime.get_container_stats("broken") is None
+
+
+def test_list_managed_stats_skips_broken_container_stats() -> None:
+    records = [
+        SimpleNamespace(name="good", host_port=8000),
+        SimpleNamespace(name="bad", host_port=8001),
+    ]
+    runtime = DockerRuntime(client=None)
+    runtime.list_managed_containers = lambda: records  # type: ignore[method-assign]
+    runtime.get_container_stats = lambda name: (_ for _ in ()).throw(RuntimeError("boom")) if name == "bad" else SimpleNamespace()  # type: ignore[method-assign]
+
+    stats = runtime.list_managed_stats()
+
+    assert len(stats) == 1
