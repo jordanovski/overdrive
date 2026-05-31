@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 from dataclasses import dataclass
+from typing import Any
 
 from huggingface_hub import HfApi
 
@@ -63,6 +64,20 @@ def _as_positive_limit(limit: int) -> int:
     return min(limit, 100)
 
 
+def _list_models_compat(api: HfApi, **kwargs: Any):
+    try:
+        return api.list_models(**kwargs)
+    except TypeError as exc:
+        message = str(exc)
+        # Older huggingface_hub versions may not support some newer kwargs.
+        for optional_kwarg in ("direction", "cardData"):
+            if optional_kwarg in kwargs and optional_kwarg in message:
+                fallback = dict(kwargs)
+                fallback.pop(optional_kwarg, None)
+                return api.list_models(**fallback)
+        raise
+
+
 def search_hub_models(options: HubSearchOptions) -> list[dict[str, object]]:
     limit = _as_positive_limit(options.limit)
     query = options.query.strip()
@@ -71,7 +86,8 @@ def search_hub_models(options: HubSearchOptions) -> list[dict[str, object]]:
 
     # Pull extra rows before local filtering so the final page remains populated.
     request_limit = min(max(limit * 4, 40), 200)
-    records = api.list_models(
+    records = _list_models_compat(
+        api,
         search=query or None,
         author=options.author or None,
         pipeline_tag=options.pipeline_tag or None,

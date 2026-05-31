@@ -25,7 +25,15 @@ async function hubJson(url, options = {}) {
     headers: { 'Content-Type': 'application/json', ...(options.headers || {}) },
     ...options,
   });
-  const payload = await response.json();
+  const raw = await response.text();
+  let payload = {};
+  if (raw.trim()) {
+    try {
+      payload = JSON.parse(raw);
+    } catch {
+      payload = { detail: raw.replace(/<[^>]*>/g, ' ').replace(/\s+/g, ' ').trim() };
+    }
+  }
   if (!response.ok) {
     throw new Error(payload.detail || 'Hub request failed.');
   }
