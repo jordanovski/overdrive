@@ -75,8 +75,14 @@ body {
 .nav-row {
   display: flex;
   flex-wrap: wrap;
-  gap: 12px;
+  gap: 8px;
   margin-top: 18px;
+  width: fit-content;
+  padding: 6px;
+  border-radius: 999px;
+  border: 1px solid rgba(155, 178, 173, 0.2);
+  background: rgba(6, 14, 18, 0.72);
+  backdrop-filter: blur(8px);
 }
 
 .nav-link {
@@ -84,10 +90,14 @@ body {
   display: inline-flex;
   align-items: center;
   justify-content: center;
+  min-width: 126px;
+  white-space: nowrap;
 }
 
 .nav-link.is-active {
-  box-shadow: inset 0 0 0 1px rgba(5, 16, 20, 0.16);
+  box-shadow:
+    0 10px 24px rgba(0, 0, 0, 0.22),
+    inset 0 0 0 1px rgba(5, 16, 20, 0.16);
 }
 
 .hero-meta {
@@ -251,7 +261,12 @@ body {
   font-size: 0.82rem;
 }
 
-button {
+button,
+.primary-button,
+.success-button,
+.warning-button,
+.danger-button,
+.ghost-button {
   appearance: none;
   border: 0;
   border-radius: 999px;
@@ -259,6 +274,22 @@ button {
   color: #051014;
   font: 700 0.92rem var(--font-sans);
   cursor: pointer;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  text-decoration: none;
+  line-height: 1;
+  transition: transform 140ms ease, filter 140ms ease, border-color 140ms ease, background 140ms ease;
+}
+
+button:hover,
+.primary-button:hover,
+.success-button:hover,
+.warning-button:hover,
+.danger-button:hover,
+.ghost-button:hover {
+  transform: translateY(-1px);
+  filter: brightness(1.03);
 }
 
 .primary-button { background: var(--accent); }
@@ -270,6 +301,11 @@ button {
   background: transparent;
   color: var(--text);
   border: 1px solid rgba(155, 178, 173, 0.22);
+}
+
+.nav-row .ghost-button {
+  border-color: rgba(139, 196, 184, 0.22);
+  background: rgba(10, 22, 28, 0.42);
 }
 
 .event-log {
