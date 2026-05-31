@@ -43,6 +43,14 @@ def _manager(model: ModelMetadata):
     )
     runtime = SimpleNamespace(
         reserve_port=lambda preferred: preferred or 8000,
+        build_command=lambda launch: [
+            "--model",
+            "/models/current",
+            "--port",
+            "8000",
+            "--tensor-parallel-size",
+            str(launch.tensor_parallel_size),
+        ],
         list_managed_stats=lambda: [
             ContainerStats(
                 container_id="abc123",
@@ -142,6 +150,9 @@ def test_models_endpoint_includes_recommendations(monkeypatch) -> None:
     assert payload[0]["model_id"] == model.model_id
     assert payload[0]["recommendations"]["preferred_port"] == 8000
     assert payload[0]["recommendations"]["kv_cache_dtype"] == "auto"
+    assert payload[0]["command_preview"]["image"] == "nvcr.io/nvidia/vllm:26.04-py3"
+    assert payload[0]["command_preview"]["host_port"] == 8000
+    assert payload[0]["command_preview"]["shell"].startswith("vllm serve --model")
 
 
 def test_plan_endpoint_returns_display_report(monkeypatch) -> None:
@@ -166,6 +177,8 @@ def test_plan_endpoint_returns_display_report(monkeypatch) -> None:
     payload = response.json()
     assert payload["requested_port"] == 8000
     assert "allowed=True" in payload["display"]
+    assert payload["command_preview"]["host_port"] == 8000
+    assert payload["command_preview"]["args"][0:2] == ["--model", "/models/current"]
 
 
 def test_profile_endpoint_persists_visible_settings(monkeypatch) -> None:

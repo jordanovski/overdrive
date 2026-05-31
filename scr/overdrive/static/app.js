@@ -17,6 +17,8 @@ const ui = {
   stats: document.getElementById('stats'),
   logs: document.getElementById('logs'),
   logsCaption: document.getElementById('logs-caption'),
+  commandPreview: document.getElementById('command-preview'),
+  commandCaption: document.getElementById('command-caption'),
   eventLog: document.getElementById('event-log'),
   form: document.getElementById('settings-form'),
   refreshModels: document.getElementById('refresh-models'),
@@ -73,6 +75,38 @@ function setFormValues(model) {
   document.getElementById('gpu-budget').value = settings.gpu_memory_budget_gb ?? '';
 }
 
+function formatCommandPreview(preview) {
+  if (!preview) {
+    return 'No command preview available.';
+  }
+  return [
+    `Image: ${preview.image}`,
+    `Ports: host ${preview.host_port} -> container ${preview.container_port}`,
+    '',
+    preview.shell,
+  ].join('\n');
+}
+
+async function refreshCommandPreview() {
+  const model = selectedModel();
+  if (!model) {
+    ui.commandCaption.textContent = 'Resolved from the current form values';
+    ui.commandPreview.textContent = 'Select a model to preview its vLLM launch command.';
+    return;
+  }
+  try {
+    const payload = await fetchJson(`/api/models/${encodeURIComponent(model.model_id)}/plan`, {
+      method: 'POST',
+      body: JSON.stringify(currentSettings()),
+    });
+    ui.commandCaption.textContent = payload.display;
+    ui.commandPreview.textContent = formatCommandPreview(payload.command_preview);
+  } catch (error) {
+    ui.commandCaption.textContent = 'Unable to compute preview';
+    ui.commandPreview.textContent = error.message;
+  }
+}
+
 function renderModels() {
   ui.hubRoot.textContent = document.body.dataset.hubRoot;
   ui.modelCount.textContent = `${state.models.length} loaded`;
@@ -96,6 +130,7 @@ function renderModels() {
       }
       renderModels();
       renderSelected();
+      refreshCommandPreview();
       refreshLogs();
     });
   }
@@ -165,6 +200,7 @@ async function refreshModels(preserveSelection = true) {
   }
   renderModels();
   renderSelected();
+  await refreshCommandPreview();
 }
 
 async function refreshRuntime() {
@@ -216,7 +252,11 @@ ui.refreshModels.addEventListener('click', async () => {
 });
 
 ui.planAction.addEventListener('click', async () => {
-  await performAction('/api/models/{modelId}/plan', (payload) => payload.display);
+  const payload = await performAction('/api/models/{modelId}/plan', (payload) => payload.display);
+  if (payload) {
+    ui.commandCaption.textContent = payload.display;
+    ui.commandPreview.textContent = formatCommandPreview(payload.command_preview);
+  }
 });
 
 ui.launchAction.addEventListener('click', async () => {
@@ -266,6 +306,12 @@ ui.cleanupAction.addEventListener('click', async () => {
     appendLog(error.message);
   }
 });
+
+for (const element of ui.form.querySelectorAll('input')) {
+  element.addEventListener('input', () => {
+    refreshCommandPreview();
+  });
+}
 
 async function bootstrap() {
   await refreshModels(false);

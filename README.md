@@ -62,6 +62,7 @@ Important:
 
 - The model directory must be mounted into the Overdrive container at the same absolute host path.
 - Overdrive uses the host Docker socket to launch managed vLLM containers.
+- The Compose file also maps `host.docker.internal` to the host gateway so benchmark jobs can reach host-published vLLM ports from inside the Overdrive container.
 - Benchmark artifacts and saved profiles persist in Docker volumes managed by Compose.
 
 To pull the latest published container later:

@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 from pathlib import Path
+import shlex
 
 import uvicorn
 from fastapi import FastAPI, HTTPException, Request
@@ -13,6 +14,7 @@ from pydantic import BaseModel, ConfigDict
 
 from overdrive import __version__
 from overdrive.benchmarks import BenchmarkService
+from overdrive.docker_runtime import INTERNAL_VLLM_PORT, VLLM_IMAGE
 from overdrive.hardware import (
     GPUDevice,
     detect_gpus,
@@ -21,7 +23,13 @@ from overdrive.hardware import (
     recommended_max_model_len,
     recommended_tensor_parallel_size,
 )
-from overdrive.models import BenchmarkConfig, ModelMetadata, ModelProfile, PreflightReport
+from overdrive.models import (
+    BenchmarkConfig,
+    LaunchConfig,
+    ModelMetadata,
+    ModelProfile,
+    PreflightReport,
+)
 from overdrive.state import EngineStateManager
 
 PACKAGE_ROOT = Path(__file__).resolve().parent
@@ -63,6 +71,20 @@ def _recommended_settings(
     }
 
 
+def _recommended_launch_settings(
+    manager: EngineStateManager,
+    model: ModelMetadata,
+    gpus: list[GPUDevice],
+) -> LaunchSettings:
+    return LaunchSettings(
+        preferred_port=manager.runtime.reserve_port(model.profile.preferred_port),
+        max_model_len=recommended_max_model_len(model, gpus),
+        tensor_parallel_size=recommended_tensor_parallel_size(model, gpus),
+        kv_cache_dtype=recommended_kv_cache_dtype(model, gpus),
+        gpu_memory_budget_gb=recommended_gpu_budget_gb(model, gpus),
+    )
+
+
 def _hardware_summary(gpus: list[GPUDevice]) -> str:
     if not gpus:
         return "No GPU telemetry available"
@@ -77,6 +99,7 @@ def _serialize_model(
     gpus: list[GPUDevice],
 ) -> dict[str, object]:
     recommendations = _recommended_settings(manager, model, gpus)
+    preview = _preview_launch_command(manager, model, _recommended_launch_settings(manager, model, gpus))
     return {
         "model_id": model.model_id,
         "model_name": model.model_name,
@@ -90,11 +113,12 @@ def _serialize_model(
         "hardware_summary": _hardware_summary(gpus),
         "profile": model.profile.model_dump(mode="json"),
         "recommendations": recommendations,
+        "command_preview": preview,
     }
 
 
 def _serialize_runtime_item(item: object) -> dict[str, object]:
-    if hasattr(item, "model_dump"):
+    if isinstance(item, BaseModel):
         return item.model_dump(mode="json")
     raise TypeError(f"Unsupported runtime item: {type(item)!r}")
 
@@ -122,6 +146,45 @@ def _profile_from_settings(model: ModelMetadata, settings: LaunchSettings) -> Mo
         gpu_memory_budget_gb=settings.gpu_memory_budget_gb,
         extra_args=list(model.profile.extra_args),
     )
+
+
+def _launch_config_from_settings(
+    manager: EngineStateManager,
+    model: ModelMetadata,
+    settings: LaunchSettings,
+) -> LaunchConfig:
+    profile = model.profile
+    return LaunchConfig(
+        model_id=model.model_id,
+        snapshot_path=model.snapshot_path,
+        host_port=manager.runtime.reserve_port(settings.preferred_port or profile.preferred_port),
+        max_model_len=settings.max_model_len if settings.max_model_len is not None else profile.max_model_len,
+        tensor_parallel_size=settings.tensor_parallel_size or profile.tensor_parallel_size,
+        kv_cache_dtype=settings.kv_cache_dtype if settings.kv_cache_dtype is not None else profile.kv_cache_dtype,
+        gpu_memory_utilization=profile.gpu_memory_utilization,
+        gpu_memory_budget_gb=(
+            settings.gpu_memory_budget_gb
+            if settings.gpu_memory_budget_gb is not None
+            else profile.gpu_memory_budget_gb
+        ),
+        extra_args=list(profile.extra_args),
+    )
+
+
+def _preview_launch_command(
+    manager: EngineStateManager,
+    model: ModelMetadata,
+    settings: LaunchSettings,
+) -> dict[str, object]:
+    launch = _launch_config_from_settings(manager, model, settings)
+    args = manager.runtime.build_command(launch)
+    return {
+        "image": VLLM_IMAGE,
+        "host_port": launch.host_port,
+        "container_port": INTERNAL_VLLM_PORT,
+        "args": args,
+        "shell": shlex.join(["vllm", "serve", *args]),
+    }
 
 
 def create_app(
@@ -187,12 +250,14 @@ def create_app(
     @app.post("/api/models/{model_id:path}/plan")
     async def plan(model_id: str, settings: LaunchSettings) -> dict[str, object]:
         try:
+            model = manager.get_model(model_id)
             report = manager.preflight_launch(model_id, **settings.model_dump())
         except KeyError as exc:
             raise HTTPException(status_code=404, detail=str(exc)) from exc
         return {
             **report.model_dump(mode="json"),
             "display": _format_preflight_report(report),
+            "command_preview": _preview_launch_command(manager, model, settings),
         }
 
     @app.post("/api/models/{model_id:path}/launch")

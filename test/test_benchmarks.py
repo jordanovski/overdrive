@@ -1,7 +1,12 @@
 from pathlib import Path
 from types import SimpleNamespace
 
-from overdrive.benchmarks import BenchmarkService, _build_prompt, _extract_patch
+from overdrive.benchmarks import (
+    BenchmarkService,
+    _build_prompt,
+    _extract_patch,
+    _runtime_base_url,
+)
 from overdrive.models import BenchmarkConfig, ModelMetadata, ModelProfile
 
 
@@ -44,6 +49,12 @@ def test_build_prompt_includes_issue_and_tests() -> None:
     assert "Look at sympify." in prompt
     assert "test_fix" in prompt
     assert "test_keep" in prompt
+
+
+def test_runtime_base_url_uses_configured_runtime_host(monkeypatch) -> None:
+    monkeypatch.setenv("OVERDRIVE_RUNTIME_HOST", "host.docker.internal")
+
+    assert _runtime_base_url(8000) == "http://host.docker.internal:8000"
 
 
 def test_benchmark_service_runs_selected_models_sequentially(monkeypatch, tmp_path: Path) -> None:
@@ -176,3 +187,38 @@ def test_benchmark_service_continues_after_model_failure(monkeypatch, tmp_path: 
     assert launches == [model_a.model_id, model_b.model_id]
     assert completed_job.model_runs[0].status == "failed"
     assert completed_job.model_runs[1].status == "completed"
+
+
+def test_generate_patch_uses_runtime_host_for_containerized_overdrive(monkeypatch) -> None:
+    manager = SimpleNamespace()
+    service = BenchmarkService(
+        manager,
+        gpus=[],
+        dataset_loader=lambda dataset_name, split: [],
+        background_runner=lambda func: func(),
+    )
+    captured: dict[str, str] = {}
+
+    class FakeResponse:
+        def raise_for_status(self) -> None:
+            return None
+
+        def json(self) -> dict[str, object]:
+            return {"choices": [{"message": {"content": "diff --git a/x b/x"}}]}
+
+    def fake_post(url: str, json: dict[str, object], timeout: int):
+        captured["url"] = url
+        return FakeResponse()
+
+    monkeypatch.setenv("OVERDRIVE_RUNTIME_HOST", "host.docker.internal")
+    monkeypatch.setattr("overdrive.benchmarks.requests.post", fake_post)
+
+    output = service._generate_patch(
+        host_port=8000,
+        served_model="served-model",
+        prompt="Fix it",
+        config=BenchmarkConfig(model_ids=["org/model-a"]),
+    )
+
+    assert output == "diff --git a/x b/x"
+    assert captured["url"] == "http://host.docker.internal:8000/v1/chat/completions"

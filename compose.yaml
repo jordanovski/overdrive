@@ -9,7 +9,10 @@ services:
     environment:
       OVERDRIVE_HUB_ROOT: "${OVERDRIVE_HUB_ROOT:-/raid/huggingface}"
       OVERDRIVE_LOG_LEVEL: "${OVERDRIVE_LOG_LEVEL:-INFO}"
+      OVERDRIVE_RUNTIME_HOST: "${OVERDRIVE_RUNTIME_HOST:-host.docker.internal}"
       OVERDRIVE_WEB_PORT: "8080"
+    extra_hosts:
+      - "host.docker.internal:host-gateway"
     restart: unless-stopped
     volumes:
       - type: bind

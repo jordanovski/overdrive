@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import json
+import os
 import platform
 import re
 import subprocess
@@ -35,6 +36,14 @@ SWE_SYSTEM_PROMPT = (
     "Return only a valid unified git diff patch that can be applied with git apply. "
     "Do not include explanations, markdown fences, or extra prose."
 )
+
+
+def _runtime_host() -> str:
+    return os.environ.get("OVERDRIVE_RUNTIME_HOST", "127.0.0.1")
+
+
+def _runtime_base_url(host_port: int) -> str:
+    return f"http://{_runtime_host()}:{host_port}"
 
 
 def _now() -> datetime:
@@ -366,7 +375,7 @@ class BenchmarkService:
 
     def _wait_for_vllm(self, host_port: int) -> str:
         deadline = time.monotonic() + VLLM_READY_TIMEOUT_SECONDS
-        base_url = f"http://127.0.0.1:{host_port}"
+        base_url = _runtime_base_url(host_port)
         while time.monotonic() < deadline:
             try:
                 response = requests.get(f"{base_url}/v1/models", timeout=10)
@@ -420,7 +429,7 @@ class BenchmarkService:
         prompt: str,
         config: BenchmarkConfig,
     ) -> str:
-        base_url = f"http://127.0.0.1:{host_port}/v1"
+        base_url = f"{_runtime_base_url(host_port)}/v1"
         chat_payload = {
             "model": served_model,
             "messages": [
