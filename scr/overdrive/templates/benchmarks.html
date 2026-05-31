@@ -116,9 +116,10 @@
         <section class="panel logs-panel">
           <div class="section-heading">
             <h2>Run Logs</h2>
-          <div class="section-heading">
-            <h2>Run Logs</h2>
-            <span class="muted">Recent events plus failure output and evaluation log tails</span>
+            <span id="benchmark-log-caption" class="muted">Actionable run diagnostics and failure context</span>
+          </div>
+          <div class="action-row compact-actions">
+            <button id="benchmark-reset-log-view" class="ghost-button" type="button">Back To Run Diagnostics</button>
           </div>
           <pre id="benchmark-events" class="event-log">Waiting for a benchmark run.</pre>
         </section>

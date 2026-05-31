@@ -17,6 +17,8 @@ const benchmarkUi = {
   clearAll: document.getElementById('clear-selected-models'),
   startBenchmark: document.getElementById('start-benchmark'),
   events: document.getElementById('benchmark-events'),
+  logCaption: document.getElementById('benchmark-log-caption'),
+  resetLogView: document.getElementById('benchmark-reset-log-view'),
   status: document.getElementById('benchmark-status'),
   caption: document.getElementById('benchmark-job-caption'),
   chart: document.getElementById('benchmark-chart'),
@@ -76,6 +78,35 @@ function formatDateTime(value) {
 
 function logBenchmark(message) {
   benchmarkUi.events.textContent = `${new Date().toLocaleTimeString()}  ${message}\n${benchmarkUi.events.textContent}`.trim();
+}
+
+function renderRunDiagnosticsLog(job) {
+  const lines = [];
+  if (job.events?.length) {
+    lines.push('=== Job Events ===');
+    lines.push(...job.events);
+  }
+
+  const failedRuns = job.model_runs.filter((run) => run.error);
+  if (failedRuns.length) {
+    lines.push('');
+    lines.push('=== Failure Summary ===');
+    for (const run of failedRuns) {
+      lines.push(`${run.display_name || run.model_id}: ${run.error}`);
+    }
+  }
+
+  const evalLogsAvailable = job.model_runs.filter((run) => run.evaluation_log_path);
+  if (evalLogsAvailable.length) {
+    lines.push('');
+    lines.push('=== Evaluation Logs Available ===');
+    for (const run of evalLogsAvailable) {
+      lines.push(`Use "Show Full Eval Log" on ${run.display_name || run.model_id}`);
+    }
+  }
+
+  benchmarkUi.logCaption.textContent = 'Actionable run diagnostics and failure context';
+  benchmarkUi.events.textContent = lines.length ? lines.join('\n') : 'No log output yet.';
 }
 
 async function benchmarkJson(url, options = {}) {
@@ -236,6 +267,7 @@ function renderBenchmarkJob(job) {
     benchmarkUi.overview.textContent = 'Start a run to see live progress, failures, and final results.';
     benchmarkUi.status.textContent = 'Create or select a run to inspect model-by-model progress.';
     benchmarkUi.events.textContent = 'Waiting for a benchmark run.';
+    benchmarkUi.logCaption.textContent = 'Actionable run diagnostics and failure context';
     benchmarkUi.chart.textContent = 'No results yet.';
     benchmarkUi.progressBar.style.width = '0%';
     benchmarkUi.progressText.textContent = 'No benchmark in progress.';
@@ -322,22 +354,8 @@ function renderBenchmarkJob(job) {
   }
 
   renderBenchmarkCommands(job);
-
-  const logLines = [];
-  if (job.events?.length) {
-    logLines.push(...job.events);
-  }
-  for (const run of job.model_runs) {
-    if (run.error) {
-      logLines.push(`ERROR ${run.display_name || run.model_id}: ${run.error}`);
-    }
-    if (run.evaluation_log_excerpt) {
-      logLines.push(`--- evaluation log tail for ${run.display_name || run.model_id} ---`);
-      logLines.push(run.evaluation_log_excerpt);
-    }
-  }
   if (!benchmarkState.selectedLogModelId) {
-    benchmarkUi.events.textContent = logLines.length ? logLines.join('\n\n') : 'No log output yet.';
+    renderRunDiagnosticsLog(job);
   }
 }
 
@@ -351,6 +369,7 @@ async function refreshSelectedBenchmarkLog() {
     );
     const title = payload.display_name || payload.model_id;
     const pathLine = payload.evaluation_log_path ? `Path: ${payload.evaluation_log_path}\n\n` : '';
+    benchmarkUi.logCaption.textContent = `Full evaluation log • ${title}`;
     benchmarkUi.events.textContent = `Full evaluation log for ${title}\n${pathLine}${payload.content || 'No evaluation log content available.'}`;
   } catch (error) {
     logBenchmark(error.message);
@@ -547,6 +566,17 @@ async function bootstrapBenchmarkPage() {
   await refreshBenchmarkJobList();
   window.setInterval(refreshBenchmarkJobList, 2000);
 }
+
+benchmarkUi.resetLogView.addEventListener('click', async () => {
+  benchmarkState.selectedLogModelId = null;
+  const job = selectedBenchmarkJob();
+  if (job) {
+    renderRunDiagnosticsLog(job);
+  } else {
+    benchmarkUi.logCaption.textContent = 'Actionable run diagnostics and failure context';
+    benchmarkUi.events.textContent = 'Waiting for a benchmark run.';
+  }
+});
 
 bootstrapBenchmarkPage().catch((error) => {
   logBenchmark(error.message);
