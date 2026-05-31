@@ -4,6 +4,9 @@ from types import SimpleNamespace
 import overdrive.web as web_module
 from fastapi.testclient import TestClient
 from overdrive.models import (
+    BenchmarkConfig,
+    BenchmarkJob,
+    BenchmarkModelRun,
     ContainerRecord,
     ContainerStats,
     ModelMetadata,
@@ -213,3 +216,58 @@ def test_runtime_and_logs_endpoints_expose_container_data(monkeypatch) -> None:
     assert runtime_response.json()["containers"][0]["model_id"] == model.model_id
     assert logs_response.status_code == 200
     assert logs_response.json()["lines"] == ["first line", "second line"]
+
+
+def test_benchmark_routes_expose_jobs(monkeypatch) -> None:
+    model = _model(size=35.0)
+    manager, _ = _manager(model)
+    job = BenchmarkJob(
+        job_id="job-1",
+        config=BenchmarkConfig(model_ids=[model.model_id]),
+        model_runs=[
+            BenchmarkModelRun(
+                model_id=model.model_id,
+                display_name=model.display_name,
+                status="completed",
+                submitted_instances=4,
+                resolved_instances=2,
+                resolution_rate=50.0,
+            )
+        ],
+        status="completed",
+    )
+    captured: dict[str, object] = {}
+
+    def create_job(config: BenchmarkConfig) -> BenchmarkJob:
+        captured["config"] = config
+        return job
+
+    benchmark_service = SimpleNamespace(
+        list_jobs=lambda: [job],
+        get_job=lambda job_id: job,
+        create_job=create_job,
+    )
+
+    monkeypatch.setattr(web_module, "detect_gpus", lambda: [])
+
+    client = TestClient(web_module.create_app(manager, benchmark_service=benchmark_service))
+
+    page_response = client.get("/benchmarks")
+    jobs_response = client.get("/api/benchmarks/jobs")
+    create_response = client.post(
+        "/api/benchmarks/jobs",
+        json={
+            "model_ids": [model.model_id],
+            "dataset_name": "princeton-nlp/SWE-bench_Lite",
+            "split": "test",
+            "instance_limit": 10,
+            "max_eval_workers": 2,
+        },
+    )
+
+    assert page_response.status_code == 200
+    assert "SWE-bench" in page_response.text
+    assert jobs_response.status_code == 200
+    assert jobs_response.json()[0]["job_id"] == "job-1"
+    assert create_response.status_code == 202
+    assert captured["config"].model_ids == [model.model_id]

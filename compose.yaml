@@ -1,0 +1,30 @@
+name: overdrive
+
+services:
+  web:
+    image: ${OVERDRIVE_IMAGE:-ghcr.io/jordanovski/overdrive:latest}
+    pull_policy: always
+    ports:
+      - "${OVERDRIVE_WEB_PORT:-8080}:8080"
+    environment:
+      OVERDRIVE_HUB_ROOT: "${OVERDRIVE_HUB_ROOT:-/raid/huggingface}"
+      OVERDRIVE_WEB_PORT: "8080"
+    restart: unless-stopped
+    volumes:
+      - type: bind
+        source: /var/run/docker.sock
+        target: /var/run/docker.sock
+      - type: bind
+        source: ${OVERDRIVE_HUB_ROOT:-/raid/huggingface}
+        target: ${OVERDRIVE_HUB_ROOT:-/raid/huggingface}
+        read_only: true
+      - type: volume
+        source: overdrive_cache
+        target: /root/.cache/overdrive
+      - type: volume
+        source: overdrive_config
+        target: /root/.config/overdrive
+
+volumes:
+  overdrive_cache:
+  overdrive_config:

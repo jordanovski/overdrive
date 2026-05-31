@@ -1,6 +1,6 @@
 # Overdrive 🏎️
 
-Overdrive is a performance-focused web UI and CLI tool designed specifically to orchestrate, monitor, and manage concurrent [vLLM](https://github.com/vllm-project/vllm) execution instances locally on your **NVIDIA DGX Spark**.
+Overdrive is a performance-focused web UI and CLI tool designed specifically to orchestrate, monitor, manage, and benchmark concurrent [vLLM](https://github.com/vllm-project/vllm) execution instances locally on your **NVIDIA DGX Spark**.
 
 Built entirely using `Python` and `FastAPI`, Overdrive bridges the gap between raw hardware capabilities and local multi-agent or engineering workflows, bypassing brittle, manually typed setup commands.
 
@@ -10,6 +10,7 @@ Built entirely using `Python` and `FastAPI`, Overdrive bridges the gap between r
 - **Concurrent Runtimes:** Spin up, isolate, and maintain multiple vLLM instances in parallel with built-in port collision protection.
 - **Preflight Admission Control:** Estimate launch memory usage, account for active managed reservations, and reject launches that exceed a configured GPU budget.
 - **Live Operations Dashboard:** Monitor managed containers, tail logs, inspect live Docker stats, and control launches from the browser-based web console or the CLI.
+- **SWE-bench Benchmark Page:** Select multiple local models, run SWE-bench sequentially with recommended vLLM settings, and compare resolution rates in a built-in results graph.
 - **Hugging Face CLI Integration:** Search Hub models and download them through the real `hf` CLI without leaving Overdrive.
 - **NVIDIA NGC Stack Integration:** Manage `nvcr.io/nvidia/vllm:26.04-py3` container configurations through the official Docker SDK.
 
@@ -18,9 +19,63 @@ Built entirely using `Python` and `FastAPI`, Overdrive bridges the gap between r
 ### Prerequisites
 
 Ensure the following environments are active on your host system:
+
 - **NVIDIA GPU Drivers & Container Toolkit**
 - **Docker Engine**
 - **Python 3.10+**
+
+### Preferred On DGX: Docker Compose + GHCR Image
+
+You do **not** need to run `overdrive web ...` yourself when using the container. The
+image already starts the web server on container boot.
+
+You also do **not** need to clone this repository onto the DGX. The GitHub Action now
+builds and publishes the container to GitHub Container Registry at:
+
+```text
+ghcr.io/jordanovski/overdrive:latest
+```
+
+Fast path:
+
+```bash
+mkdir -p ~/overdrive
+cd ~/overdrive
+curl -O https://raw.githubusercontent.com/jordanovski/overdrive/main/compose.yaml
+curl -O https://raw.githubusercontent.com/jordanovski/overdrive/main/.env.example
+cp .env.example .env
+# edit .env and set OVERDRIVE_HUB_ROOT to the host path that contains your models
+docker compose up -d
+```
+
+Then open `http://localhost:8080` in your browser.
+
+If the repository or package is private, log in once on the DGX before the first pull:
+
+```bash
+echo "$GHCR_TOKEN" | docker login ghcr.io -u YOUR_GITHUB_USERNAME --password-stdin
+```
+
+That token needs `read:packages` access.
+
+Important:
+
+- The model directory must be mounted into the Overdrive container at the same absolute host path.
+- Overdrive uses the host Docker socket to launch managed vLLM containers.
+- Benchmark artifacts and saved profiles persist in Docker volumes managed by Compose.
+
+To pull the latest published container later:
+
+```bash
+docker compose pull
+docker compose up -d
+```
+
+Stop the stack with:
+
+```bash
+docker compose down
+```
 
 ### Install Without a Source Checkout
 
@@ -59,27 +114,51 @@ overdrive --hub-root /raid/huggingface web --host 0.0.0.0 --port 8080
 
 Then open `http://localhost:8080` in your browser.
 
+The web console now includes two pages:
+
+- `/` for launch control, runtime status, logs, and profile management
+- `/benchmarks` for SWE-bench runs across multiple selected local models
+
+### SWE-bench Notes
+
+The benchmark page launches each selected model one by one with Overdrive's recommended
+settings, generates predictions against the chosen SWE-bench dataset, runs the official
+`swebench.harness.run_evaluation` harness, and plots the resulting resolution rate.
+
+Practical constraints:
+
+- Start with `princeton-nlp/SWE-bench_Lite` and a small instance limit before trying larger runs.
+- SWE-bench evaluation is Docker-heavy and can consume significant CPU, disk, and time.
+- On ARM64 hosts, Overdrive asks SWE-bench to build evaluation images locally instead of pulling the default x86 namespace.
+
 ### Run As A Docker Container
 
-Build the container image:
+If you prefer not to use Compose, the direct container form is still available.
+You still do **not** run `overdrive web` manually inside the container; the image's
+default command starts the web UI for you.
+
+Pull the published image directly from GitHub Container Registry:
 
 ```bash
-docker build -t overdrive:web .
+docker pull ghcr.io/jordanovski/overdrive:latest
 ```
 
 Run it against the host Docker daemon and your model root:
 
 ```bash
 docker run --rm -p 8080:8080 \
-	-v /var/run/docker.sock:/var/run/docker.sock \
-	-v /raid/huggingface:/raid/huggingface:ro \
-	-e OVERDRIVE_HUB_ROOT=/raid/huggingface \
-	overdrive:web
+  -v /var/run/docker.sock:/var/run/docker.sock \
+  -v /raid/huggingface:/raid/huggingface:ro \
+  -e OVERDRIVE_HUB_ROOT=/raid/huggingface \
+  ghcr.io/jordanovski/overdrive:latest
 ```
 
 Important: mount the model directory into the Overdrive container at the same absolute
 path it has on the host. Overdrive passes discovered model paths through to Docker when
 it launches vLLM containers, so path parity matters.
+
+For benchmark runs from inside the Overdrive container, also make sure the container has
+enough disk available for SWE-bench build and evaluation artifacts.
 
 #### Update an existing install
 
@@ -131,7 +210,7 @@ cd overdrive
 python -m venv .venv
 source .venv/bin/activate  # On Windows: .venv\Scripts\Activate.ps1
 python -m pip install --upgrade pip
-pip install -r requirements-dev.txt
+python -m pip install -e .[dev]
 ```
 
 ### Project Layout
@@ -147,7 +226,6 @@ test/  Automated tests
 pytest
 ruff check .
 ```
-
 
 ### CLI Commands
 

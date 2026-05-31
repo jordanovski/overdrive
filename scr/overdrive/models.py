@@ -2,10 +2,15 @@
 
 from __future__ import annotations
 
+from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any, Literal
 
 from pydantic import BaseModel, ConfigDict, Field
+
+
+def _utc_now() -> datetime:
+    return datetime.now(timezone.utc)
 
 
 class ModelProfile(BaseModel):
@@ -114,3 +119,59 @@ class OverdriveProfiles(BaseModel):
     model_config = ConfigDict(extra="forbid")
 
     models: dict[str, ModelProfile] = Field(default_factory=dict)
+
+
+class BenchmarkConfig(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+
+    model_ids: list[str]
+    dataset_name: str = "princeton-nlp/SWE-bench_Lite"
+    split: str = "test"
+    instance_limit: int | None = 10
+    max_eval_workers: int = 2
+    timeout_seconds: int = 1800
+    temperature: float = 0.0
+    max_response_tokens: int = 1200
+
+
+class BenchmarkModelRun(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+
+    model_id: str
+    display_name: str | None = None
+    status: Literal[
+        "pending",
+        "launching",
+        "waiting_for_vllm",
+        "generating_predictions",
+        "evaluating",
+        "completed",
+        "failed",
+    ] = "pending"
+    selected_settings: dict[str, int | float | str | None] = Field(default_factory=dict)
+    host_port: int | None = None
+    container_name: str | None = None
+    predictions_path: Path | None = None
+    report_path: Path | None = None
+    submitted_instances: int = 0
+    completed_instances: int = 0
+    resolved_instances: int = 0
+    resolution_rate: float | None = None
+    started_at: datetime | None = None
+    finished_at: datetime | None = None
+    error: str | None = None
+
+
+class BenchmarkJob(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+
+    job_id: str
+    status: Literal["queued", "running", "completed", "failed"] = "queued"
+    config: BenchmarkConfig
+    model_runs: list[BenchmarkModelRun]
+    current_model_id: str | None = None
+    created_at: datetime = Field(default_factory=_utc_now)
+    updated_at: datetime = Field(default_factory=_utc_now)
+    finished_at: datetime | None = None
+    error: str | None = None
+    events: list[str] = Field(default_factory=list)

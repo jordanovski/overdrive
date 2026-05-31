@@ -1,0 +1,92 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Overdrive SWE-bench</title>
+  <link rel="stylesheet" href="/static/app.css">
+</head>
+<body data-hub-root="{{ hub_root }}">
+  <div class="shell">
+    <header class="hero panel">
+      <div>
+        <p class="eyebrow">Overdrive Bench Lab</p>
+        <h1>Run SWE-bench across multiple local models.</h1>
+        <p class="hero-copy">Select any number of local models, let Overdrive launch them one by one with recommended vLLM settings, and compare their final resolution rates in one view.</p>
+        <nav class="nav-row">
+          <a href="/" class="ghost-button nav-link">Control Deck</a>
+          <a href="/benchmarks" class="primary-button nav-link is-active">SWE-bench</a>
+        </nav>
+      </div>
+      <div class="hero-meta">
+        <span class="badge">Hub Root</span>
+        <strong id="hub-root"></strong>
+        <button id="refresh-benchmark-models" class="ghost-button" type="button">Refresh Models</button>
+      </div>
+    </header>
+
+    <main class="layout benchmark-layout">
+      <section class="panel sidebar">
+        <div class="section-heading">
+          <h2>Eligible Models</h2>
+          <span id="benchmark-model-count" class="muted"></span>
+        </div>
+        <div class="action-row compact-actions">
+          <button id="select-all-models" class="ghost-button" type="button">Select All</button>
+          <button id="clear-selected-models" class="ghost-button" type="button">Clear</button>
+        </div>
+        <div id="benchmark-model-list" class="model-list"></div>
+      </section>
+
+      <section class="content-grid benchmark-grid">
+        <section class="panel form-panel">
+          <div class="section-heading">
+            <h2>Benchmark Run</h2>
+            <span class="muted">Sequential launches with recommended settings</span>
+          </div>
+          <form id="benchmark-form" class="settings-form">
+            <label>
+              <span>Dataset Name</span>
+              <input id="dataset-name" name="dataset_name" type="text" value="princeton-nlp/SWE-bench_Lite">
+            </label>
+            <label>
+              <span>Split</span>
+              <input id="dataset-split" name="split" type="text" value="test">
+            </label>
+            <label>
+              <span>Instance Limit</span>
+              <input id="instance-limit" name="instance_limit" type="number" min="1" value="10">
+            </label>
+            <label>
+              <span>Evaluation Workers</span>
+              <input id="max-workers" name="max_eval_workers" type="number" min="1" value="2">
+            </label>
+          </form>
+          <div class="action-row">
+            <button id="start-benchmark" class="primary-button" type="button">Start Benchmark</button>
+          </div>
+          <pre id="benchmark-events" class="event-log">Waiting for a benchmark run.</pre>
+        </section>
+
+        <section class="panel runtime-panel">
+          <div class="section-heading">
+            <h2>Run Status</h2>
+            <span id="benchmark-job-caption" class="muted">No active benchmark job.</span>
+          </div>
+          <div id="benchmark-status" class="status-list empty-state">Create a run to see model-by-model progress.</div>
+        </section>
+
+        <section class="panel summary-panel">
+          <div class="section-heading">
+            <h2>Results Graph</h2>
+            <span class="muted">Resolution rate by model</span>
+          </div>
+          <div id="benchmark-chart" class="chart empty-state">No results yet.</div>
+        </section>
+      </section>
+    </main>
+  </div>
+
+  <script src="/static/benchmark.js"></script>
+</body>
+</html>

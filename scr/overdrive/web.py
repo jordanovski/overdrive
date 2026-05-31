@@ -11,6 +11,7 @@ from fastapi.staticfiles import StaticFiles
 from fastapi.templating import Jinja2Templates
 from pydantic import BaseModel, ConfigDict
 
+from overdrive.benchmarks import BenchmarkService
 from overdrive.hardware import (
     GPUDevice,
     detect_gpus,
@@ -19,7 +20,7 @@ from overdrive.hardware import (
     recommended_max_model_len,
     recommended_tensor_parallel_size,
 )
-from overdrive.models import ModelMetadata, ModelProfile, PreflightReport
+from overdrive.models import BenchmarkConfig, ModelMetadata, ModelProfile, PreflightReport
 from overdrive.state import EngineStateManager
 
 PACKAGE_ROOT = Path(__file__).resolve().parent
@@ -122,17 +123,33 @@ def _profile_from_settings(model: ModelMetadata, settings: LaunchSettings) -> Mo
     )
 
 
-def create_app(manager: EngineStateManager) -> FastAPI:
+def create_app(
+    manager: EngineStateManager,
+    benchmark_service: BenchmarkService | None = None,
+) -> FastAPI:
     app = FastAPI(title="Overdrive", version="0.1.0")
     app.state.manager = manager
     app.state.gpus = detect_gpus()
+    app.state.benchmark_service = benchmark_service or BenchmarkService(
+        manager,
+        gpus=app.state.gpus,
+    )
     app.mount("/static", StaticFiles(directory=str(PACKAGE_ROOT / "static")), name="static")
 
     @app.get("/", response_class=HTMLResponse)
     async def index(request: Request) -> HTMLResponse:
         return TEMPLATES.TemplateResponse(
+            request,
             "index.html",
-            {"request": request, "hub_root": str(manager.hub_root)},
+            {"hub_root": str(manager.hub_root)},
+        )
+
+    @app.get("/benchmarks", response_class=HTMLResponse)
+    async def benchmarks_page(request: Request) -> HTMLResponse:
+        return TEMPLATES.TemplateResponse(
+            request,
+            "benchmarks.html",
+            {"hub_root": str(manager.hub_root)},
         )
 
     @app.get("/api/healthz")
@@ -209,6 +226,31 @@ def create_app(manager: EngineStateManager) -> FastAPI:
     @app.post("/api/cleanup")
     async def cleanup() -> dict[str, int]:
         return {"stopped_count": manager.cleanup()}
+
+    @app.get("/api/benchmarks/jobs")
+    async def benchmark_jobs() -> list[dict[str, object]]:
+        service: BenchmarkService = app.state.benchmark_service
+        return [job.model_dump(mode="json") for job in service.list_jobs()]
+
+    @app.get("/api/benchmarks/jobs/{job_id}")
+    async def benchmark_job(job_id: str) -> dict[str, object]:
+        service: BenchmarkService = app.state.benchmark_service
+        try:
+            job = service.get_job(job_id)
+        except KeyError as exc:
+            raise HTTPException(status_code=404, detail=f"Unknown benchmark job: {job_id}") from exc
+        return job.model_dump(mode="json")
+
+    @app.post("/api/benchmarks/jobs", status_code=202)
+    async def start_benchmark_job(config: BenchmarkConfig) -> dict[str, object]:
+        service: BenchmarkService = app.state.benchmark_service
+        try:
+            job = service.create_job(config)
+        except ValueError as exc:
+            raise HTTPException(status_code=400, detail=str(exc)) from exc
+        except RuntimeError as exc:
+            raise HTTPException(status_code=409, detail=str(exc)) from exc
+        return job.model_dump(mode="json")
 
     return app
 
