@@ -11,6 +11,7 @@ from fastapi.staticfiles import StaticFiles
 from fastapi.templating import Jinja2Templates
 from pydantic import BaseModel, ConfigDict
 
+from overdrive import __version__
 from overdrive.benchmarks import BenchmarkService
 from overdrive.hardware import (
     GPUDevice,
@@ -127,7 +128,7 @@ def create_app(
     manager: EngineStateManager,
     benchmark_service: BenchmarkService | None = None,
 ) -> FastAPI:
-    app = FastAPI(title="Overdrive", version="0.1.0")
+    app = FastAPI(title="Overdrive", version=__version__)
     app.state.manager = manager
     app.state.gpus = detect_gpus()
     app.state.benchmark_service = benchmark_service or BenchmarkService(
@@ -170,7 +171,7 @@ def create_app(
             "stats": [_serialize_runtime_item(item) for item in stats],
         }
 
-    @app.get("/api/logs/{model_id}")
+    @app.get("/api/logs/{model_id:path}")
     async def logs(model_id: str, tail: int = 50) -> dict[str, object]:
         container = next(
             (item for item in manager.active_containers() if item.model_id == model_id),
@@ -183,7 +184,7 @@ def create_app(
             "lines": manager.runtime.stream_logs(container.name, tail=tail),
         }
 
-    @app.post("/api/models/{model_id}/plan")
+    @app.post("/api/models/{model_id:path}/plan")
     async def plan(model_id: str, settings: LaunchSettings) -> dict[str, object]:
         try:
             report = manager.preflight_launch(model_id, **settings.model_dump())
@@ -194,7 +195,7 @@ def create_app(
             "display": _format_preflight_report(report),
         }
 
-    @app.post("/api/models/{model_id}/launch")
+    @app.post("/api/models/{model_id:path}/launch")
     async def launch(model_id: str, settings: LaunchSettings) -> dict[str, object]:
         try:
             result = manager.launch_model(model_id, **settings.model_dump())
@@ -204,7 +205,7 @@ def create_app(
             raise HTTPException(status_code=400, detail=str(exc)) from exc
         return result.model_dump(mode="json")
 
-    @app.post("/api/models/{model_id}/profile")
+    @app.post("/api/models/{model_id:path}/profile")
     async def save_profile(model_id: str, settings: LaunchSettings) -> dict[str, object]:
         try:
             model = manager.get_model(model_id)
@@ -219,7 +220,7 @@ def create_app(
             "profile": profile.model_dump(mode="json"),
         }
 
-    @app.post("/api/models/{model_id}/stop")
+    @app.post("/api/models/{model_id:path}/stop")
     async def stop(model_id: str) -> dict[str, object]:
         return {"model_id": model_id, "stopped": manager.stop_model(model_id)}
 

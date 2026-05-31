@@ -218,6 +218,45 @@ def test_runtime_and_logs_endpoints_expose_container_data(monkeypatch) -> None:
     assert logs_response.json()["lines"] == ["first line", "second line"]
 
 
+def test_model_routes_support_slash_separated_model_ids(monkeypatch) -> None:
+    model = ModelMetadata(
+        model_id="meta-llama/meta-llama/Meta-Llama-3.1-8B-Instruct",
+        model_name="Meta-Llama-3.1-8B-Instruct",
+        architecture="LlamaForCausalLM",
+        model_type="llama",
+        parameter_size_billions=8.0,
+        dtype="bfloat16",
+        snapshot_path=Path("/models/meta-llama/meta-llama/Meta-Llama-3.1-8B-Instruct"),
+        config_path=Path(
+            "/models/meta-llama/meta-llama/Meta-Llama-3.1-8B-Instruct/config.json"
+        ),
+        config_data={"architectures": ["LlamaForCausalLM"], "torch_dtype": "bfloat16"},
+        profile=ModelProfile(),
+    )
+    manager, saved = _manager(model)
+
+    monkeypatch.setattr(web_module, "detect_gpus", lambda: [])
+
+    client = TestClient(web_module.create_app(manager))
+
+    logs_response = client.get("/api/logs/meta-llama/meta-llama/Meta-Llama-3.1-8B-Instruct")
+    profile_response = client.post(
+        "/api/models/meta-llama/meta-llama/Meta-Llama-3.1-8B-Instruct/profile",
+        json={
+            "preferred_port": 8001,
+            "max_model_len": 4096,
+            "tensor_parallel_size": 1,
+            "kv_cache_dtype": "auto",
+            "gpu_memory_budget_gb": 110.0,
+        },
+    )
+
+    assert logs_response.status_code == 200
+    assert logs_response.json()["lines"] == ["first line", "second line"]
+    assert profile_response.status_code == 200
+    assert saved["model_id"] == model.model_id
+
+
 def test_benchmark_routes_expose_jobs(monkeypatch) -> None:
     model = _model(size=35.0)
     manager, _ = _manager(model)
